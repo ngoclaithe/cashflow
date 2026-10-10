@@ -326,6 +326,15 @@ export const App: React.FC = () => {
               await api.sendMockWebhook(d);
               await loadAllData();
             }}
+            onCalibrateBalance={async (bal) => {
+              await api.calibrateBalance(bal);
+              await loadAllData();
+            }}
+            onSimulateTransaction={async (d) => {
+              await api.simulateGpmTransaction(d);
+              await loadAllData();
+            }}
+            currentBalance={summary?.availableCash || 0}
             isSyncing={isSyncing}
             isReconciling={isReconciling}
           />

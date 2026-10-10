@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { SepayProvider } from '../bank-integrations/sepay/sepay.provider';
+import { GpmpayProvider } from '../bank-integrations/gpmpay/gpmpay.provider';
 import { SynchronizationService } from '../bank-integrations/synchronization/synchronization.service';
 import { TelegramService } from '../notifications/telegram.service';
 
@@ -11,7 +11,7 @@ export class ReconciliationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly sepayProvider: SepayProvider,
+    private readonly gpmpayProvider: GpmpayProvider,
     private readonly syncService: SynchronizationService,
     private readonly telegramService: TelegramService,
   ) {}
@@ -47,17 +47,17 @@ export class ReconciliationService {
 
     for (const user of users) {
       try {
-        const syncPage = await this.sepayProvider.fetchTransactions({
+        const syncPage = await this.gpmpayProvider.fetchTransactions({
           startDate: windowStart,
           endDate: windowEnd,
-          perPage: 100,
+          perPage: 50,
         });
 
         totalFetched += syncPage.transactions.length;
 
         const result = await this.syncService.ingestTransactions(
           user.id,
-          'SEPAY',
+          'GPMPAY',
           syncPage.transactions,
         );
 

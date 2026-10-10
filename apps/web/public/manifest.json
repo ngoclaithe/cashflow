@@ -1,7 +1,7 @@
 {
   "name": "Cashflow — Quản lý Tài chính",
   "short_name": "Cashflow",
-  "description": "Quản lý dòng tiền cá nhân và tự động đồng bộ biến động số dư SePay & MB Bank",
+  "description": "Quản lý dòng tiền cá nhân và tự động đồng bộ biến động số dư GPM Pay & MB Bank",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

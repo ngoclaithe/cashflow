@@ -740,7 +740,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               {activeTx.code && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>MÃ GIAO DỊCH (SEPAY)</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>MÃ GIAO DỊCH (GPM PAY / MBBANK)</div>
                     <div style={{ fontSize: '13px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginTop: '2px' }}>
                       {activeTx.code}
                     </div>

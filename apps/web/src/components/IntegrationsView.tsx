@@ -7,20 +7,25 @@ import {
   Clock,
   Send,
   ShieldCheck,
-  Info,
-  Server,
+  Wallet,
+  Building2,
+  Sparkles,
+  Save,
 } from 'lucide-react';
 import { SyncRun } from '../types';
-import { formatDate } from '../utils/format';
+import { formatDate, formatVND } from '../utils/format';
 
 interface IntegrationsViewProps {
   syncRuns: SyncRun[];
   reconciliationStatus: any;
   onTriggerSync: () => void;
   onRunReconciliation: () => void;
-  onSendMockWebhook: (data: any) => void;
+  onSendMockWebhook: (data: any) => Promise<void>;
+  onCalibrateBalance?: (balance: number) => Promise<void>;
+  onSimulateTransaction?: (data: any) => Promise<void>;
   isSyncing: boolean;
   isReconciling: boolean;
+  currentBalance?: number;
 }
 
 export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
@@ -29,31 +34,71 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   onTriggerSync,
   onRunReconciliation,
   onSendMockWebhook,
+  onCalibrateBalance,
+  onSimulateTransaction,
   isSyncing,
   isReconciling,
+  currentBalance = 0,
 }) => {
-  // Mock Webhook Form
-  const [mockAmount, setMockAmount] = useState('5000000');
-  const [mockType, setMockType] = useState<'in' | 'out'>('in');
-  const [mockContent, setMockContent] = useState('CTY ABC THANH TOAN LUONG THANG 10');
-  const [mockGateway, setMockGateway] = useState('MBBank');
-  const [mockFeedback, setMockFeedback] = useState<string | null>(null);
+  // Calibrate Balance Form State
+  const [calibratedBalance, setCalibratedBalance] = useState(
+    currentBalance > 0 ? String(currentBalance) : ''
+  );
+  const [calibrateFeedback, setCalibrateFeedback] = useState<string | null>(null);
+  const [isCalibrating, setIsCalibrating] = useState(false);
 
-  const handleMockSubmit = async (e: React.FormEvent) => {
+  // Simulator / Test Webhook Form
+  const [simAmount, setSimAmount] = useState('200000');
+  const [simType, setSimType] = useState<'in' | 'out'>('in');
+  const [simContent, setSimContent] = useState('GIAO DICH THU NGHIEM GPM PAY');
+  const [simFeedback, setSimFeedback] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const handleCalibrateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mockAmount || !mockContent) return;
+    const num = parseFloat(calibratedBalance);
+    if (isNaN(num)) return;
 
+    setIsCalibrating(true);
     try {
-      await onSendMockWebhook({
-        transferAmount: parseFloat(mockAmount),
-        transferType: mockType,
-        content: mockContent,
-        gateway: mockGateway,
-      });
-      setMockFeedback('Đã nạp webhook thử nghiệm thành công! Kiểm tra sổ giao dịch.');
-      setTimeout(() => setMockFeedback(null), 4000);
+      if (onCalibrateBalance) {
+        await onCalibrateBalance(num);
+      }
+      setCalibrateFeedback(`✓ Đã cập nhật số dư thực MB Bank: ${formatVND(num)}`);
+      setTimeout(() => setCalibrateFeedback(null), 4000);
     } catch (err: any) {
-      setMockFeedback(`Lỗi: ${err.message}`);
+      setCalibrateFeedback(`Lỗi: ${err.message}`);
+    } finally {
+      setIsCalibrating(false);
+    }
+  };
+
+  const handleSimulateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!simAmount || !simContent) return;
+
+    setIsSimulating(true);
+    try {
+      if (onSimulateTransaction) {
+        await onSimulateTransaction({
+          amount: parseFloat(simAmount),
+          transferContent: simContent,
+          type: simType === 'in' ? 'IN' : 'OUT',
+        });
+      } else {
+        await onSendMockWebhook({
+          transferAmount: parseFloat(simAmount),
+          transferType: simType,
+          content: simContent,
+          gateway: 'MB',
+        });
+      }
+      setSimFeedback('✓ Đã bắn giao dịch giả lập GPM Pay thành công! Dữ liệu đã được ghi sổ.');
+      setTimeout(() => setSimFeedback(null), 4000);
+    } catch (err: any) {
+      setSimFeedback(`Lỗi: ${err.message}`);
+    } finally {
+      setIsSimulating(false);
     }
   };
 
@@ -61,34 +106,34 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
       <div>
-        <h2 style={{ fontSize: '22px' }}>Tích hợp Ngân hàng & Đối soát</h2>
+        <h2 style={{ fontSize: '22px' }}>Tích hợp Ngân hàng GPM Pay & MB Bank</h2>
         <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Quản lý kết nối SePay, đối soát giao dịch định kỳ 23:30 và lịch sử đồng bộ
+          Quản lý cổng kết nối GPM Pay API, tài khoản MB Bank 1468651509999, hiệu chỉnh số dư thực tế và đối soát tự động.
         </div>
       </div>
 
-      {/* Provider Status Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-        {/* SePay Card */}
+      {/* Provider Status & Balance Calibration Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
+        {/* GPM Pay Card */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  background: 'linear-gradient(135deg, #4f46e5, #059669)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Layers size={18} color="#fff" />
+                <Layers size={20} color="#fff" />
               </div>
               <div>
-                <h3 style={{ fontSize: '16px' }}>SePay Bank Gateway</h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>API v2 & Webhook</span>
+                <h3 style={{ fontSize: '16px' }}>GPM Pay Bank Gateway</h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Official SDK & Webhook</span>
               </div>
             </div>
             <span className="badge badge-income">
@@ -96,11 +141,40 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
             </span>
           </div>
 
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            <ul style={{ paddingLeft: '20px' }}>
-              <li>Nhận biến động số dư tức thời qua Webhook URL bảo mật</li>
-              <li>Chống trùng lặp tuyệt đối qua ID SePay & chữ ký SHA-256</li>
-              <li>Hỗ trợ đồng bộ giao dịch SePay API v2</li>
+          <div
+            style={{
+              background: 'var(--bg-input)',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Ngân hàng:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>MB Bank (Quân đội)</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
+              <strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>1468651509999</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>LAI THE NGOC</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Trạng thái kết nối:</span>
+              <span style={{ color: 'var(--income)', fontWeight: 600 }}>API_OFFICIAL • ACTIVE</span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            <ul style={{ paddingLeft: '18px', margin: 0 }}>
+              <li>Tự động nhận biến động số dư tức thời qua Webhook GPM Pay</li>
+              <li>Định danh chuẩn qua GPM Pay SDK & MBBank API Official</li>
+              <li>Chống trùng lặp tuyệt đối qua ID giao dịch ngân hàng</li>
             </ul>
           </div>
 
@@ -109,102 +183,167 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
               onClick={onTriggerSync}
               disabled={isSyncing}
               className="btn btn-primary btn-sm"
-              style={{ flex: 1 }}
+              style={{ flex: 1, height: '38px' }}
             >
               <RefreshCw size={14} className={isSyncing ? 'spin' : ''} />
-              <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ API SePay'}</span>
+              <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ API GPM Pay'}</span>
             </button>
           </div>
         </div>
 
-        {/* MB Bank Policy Card */}
+        {/* Real Balance Calibration Card */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
                 style={{
-                  width: '36px',
-                  height: '36px',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '10px',
-                  background: 'rgba(99, 102, 241, 0.15)',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <ShieldCheck size={18} color="var(--primary)" />
+                <Wallet size={20} color="#fff" />
               </div>
               <div>
-                <h3 style={{ fontSize: '16px' }}>MB Bank - Kênh an toàn</h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chính sách bảo mật</span>
+                <h3 style={{ fontSize: '16px' }}>Hiệu chỉnh số dư thực MB Bank</h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chuẩn hóa số dư thực tế</span>
               </div>
             </div>
-            <span className="badge badge-neutral">Tuân thủ bảo mật</span>
+            <span className="badge badge-warning">Khuyên dùng</span>
           </div>
 
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            <p>
-              Hệ thống tuyệt đối <strong>không lưu trữ mật khẩu, OTP hay session cookie</strong> ngân hàng để
-              tránh rủi ro an ninh mạng. Mọi giao dịch MB Bank được nhận qua kết nối ủy quyền chuẩn SePay và
-              đối soát tự động 23:30 hàng ngày.
-            </p>
-          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+            Nhập số dư thực tế hiện tại hiển thị trên app MB Bank. Hệ thống sẽ lưu làm mốc chuẩn, từ đó các giao dịch biến động sau này sẽ cộng/trừ chính xác 100%!
+          </p>
 
-          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', display: 'flex', gap: '10px' }}>
-            <button
-              onClick={onRunReconciliation}
-              disabled={isReconciling}
-              className="btn btn-secondary btn-sm"
-              style={{ flex: 1 }}
+          {calibrateFeedback && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-sm)',
+                background: calibrateFeedback.startsWith('✓') ? 'var(--income-bg)' : 'var(--expense-bg)',
+                color: calibrateFeedback.startsWith('✓') ? 'var(--income)' : 'var(--expense)',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
             >
-              <Clock size={14} />
-              <span>{isReconciling ? 'Đang đối soát...' : 'Chạy đối soát (Reconciliation)'}</span>
+              {calibrateFeedback}
+            </div>
+          )}
+
+          <form onSubmit={handleCalibrateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Số dư thực tế tài khoản 1468651509999 (VNĐ)</label>
+              <input
+                type="number"
+                className="form-input"
+                placeholder="Ví dụ: 15000000"
+                value={calibratedBalance}
+                onChange={(e) => setCalibratedBalance(e.target.value)}
+                required
+                style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isCalibrating}
+              className="btn btn-primary"
+              style={{ height: '40px', justifyContent: 'center' }}
+            >
+              <Save size={16} />
+              <span>{isCalibrating ? 'Đang lưu...' : 'Lưu & Khớp số dư thực tế'}</span>
             </button>
+          </form>
+
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
+            Số dư khả dụng hiển thị hiện tại: <strong>{formatVND(currentBalance)}</strong>
           </div>
         </div>
       </div>
 
-      {/* Reconciliation Status */}
-      {reconciliationStatus && (
-        <div className="glass-card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      {/* Security & Reconciliation Banner */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Clock size={20} color="var(--primary)" />
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                background: 'rgba(99, 102, 241, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <ShieldCheck size={18} color="var(--primary)" />
+            </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600 }}>
-                Lần đối soát gần nhất: {formatDate(reconciliationStatus.runAt)}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Trạng thái: <strong style={{ color: 'var(--income)' }}>{reconciliationStatus.status}</strong> • Lỗi phát hiện: {reconciliationStatus.discrepanciesCount}
-              </div>
+              <h3 style={{ fontSize: '15px' }}>Bảo mật & Đối soát tự động (Reconciliation)</h3>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chu kỳ kiểm tra 23:30 hàng ngày</span>
             </div>
           </div>
-          <span className="badge badge-income">Chu kỳ: 23:30 Asia/Ho_Chi_Minh</span>
-        </div>
-      )}
 
-      {/* Simulator: Test Webhook */}
-      <div className="glass-card">
-        <h3 style={{ fontSize: '16px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Send size={16} color="var(--warning)" />
-          Bộ thử nghiệm SePay Webhook (Staging / Demo)
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-          Gửi thử nghiệm một gói tin biến động số dư giả lập để kiểm tra tính năng tự động ghi sổ và phân loại quy tắc.
+          <button
+            onClick={onRunReconciliation}
+            disabled={isReconciling}
+            className="btn btn-secondary btn-sm"
+          >
+            <Clock size={14} />
+            <span>{isReconciling ? 'Đang đối soát...' : 'Chạy đối soát ngay'}</span>
+          </button>
+        </div>
+
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+          Hệ thống tuyệt đối <strong>không lưu trữ mật khẩu, OTP hay session cookie</strong> ngân hàng. Mọi giao dịch MB Bank được nhận qua kết nối ủy quyền chuẩn GPM Pay và được đối soát định kỳ để không sót bất kỳ giao dịch nào.
         </p>
 
-        {mockFeedback && (
-          <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: 'rgba(16,185,129,0.15)', color: 'var(--income)', fontSize: '13px', marginBottom: '14px' }}>
-            {mockFeedback}
+        {reconciliationStatus && (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Lần đối soát gần nhất: {formatDate(reconciliationStatus.runAt)}</span>
+            <span style={{ color: 'var(--income)', fontWeight: 600 }}>Trạng thái: {reconciliationStatus.status}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Simulator: Test GPM Pay Webhook */}
+      <div className="glass-card">
+        <h3 style={{ fontSize: '16px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Send size={16} color="var(--warning)" />
+          Bộ thử nghiệm GPM Pay Webhook & Giả lập (Simulator)
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+          Tạo giao dịch giả lập qua GPM Pay SDK để kiểm tra tính năng tự động ghi sổ và phân loại danh mục thông minh.
+        </p>
+
+        {simFeedback && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              background: simFeedback.startsWith('✓') ? 'var(--income-bg)' : 'var(--expense-bg)',
+              color: simFeedback.startsWith('✓') ? 'var(--income)' : 'var(--expense)',
+              fontSize: '13px',
+              fontWeight: 600,
+              marginBottom: '14px',
+            }}
+          >
+            {simFeedback}
           </div>
         )}
 
-        <form onSubmit={handleMockSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
+        <form onSubmit={handleSimulateSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Loại giao dịch</label>
             <select
               className="form-select"
-              value={mockType}
-              onChange={(e) => setMockType(e.target.value as any)}
+              value={simType}
+              onChange={(e) => setSimType(e.target.value as any)}
             >
               <option value="in">Tiền vào (Thu nhập)</option>
               <option value="out">Tiền ra (Chi tiêu)</option>
@@ -216,25 +355,31 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
             <input
               type="number"
               className="form-input"
-              value={mockAmount}
-              onChange={(e) => setMockAmount(e.target.value)}
+              value={simAmount}
+              onChange={(e) => setSimAmount(e.target.value)}
               required
             />
           </div>
 
           <div className="form-group" style={{ margin: 0, gridColumn: 'span 2' }}>
-            <label className="form-label">Nội dung chuyển khoản (Ví dụ: TIEN NHA, LUONG, GYM)</label>
+            <label className="form-label">Nội dung chuyển khoản (Ví dụ: TIEN NHA, LUONG THANG 10, GYM)</label>
             <input
               type="text"
               className="form-input"
-              value={mockContent}
-              onChange={(e) => setMockContent(e.target.value)}
+              value={simContent}
+              onChange={(e) => setSimContent(e.target.value)}
               required
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>
-            <Send size={15} /> Gửi Webhook
+          <button
+            type="submit"
+            disabled={isSimulating}
+            className="btn btn-primary"
+            style={{ height: '42px', justifyContent: 'center' }}
+          >
+            <Send size={15} />
+            <span>{isSimulating ? 'Đang gửi...' : 'Gửi giao dịch thử'}</span>
           </button>
         </form>
       </div>

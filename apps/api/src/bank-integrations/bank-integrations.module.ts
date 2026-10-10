@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { SepayProvider } from './sepay/sepay.provider';
+import { GpmpayProvider } from './gpmpay/gpmpay.provider';
 import { SynchronizationService } from './synchronization/synchronization.service';
 import { IntegrationsController } from './integrations.controller';
 import { CategorizationRulesModule } from '../categorization-rules/categorization-rules.module';
@@ -7,7 +7,7 @@ import { CategorizationRulesModule } from '../categorization-rules/categorizatio
 @Module({
   imports: [CategorizationRulesModule],
   controllers: [IntegrationsController],
-  providers: [SepayProvider, SynchronizationService],
-  exports: [SepayProvider, SynchronizationService],
+  providers: [GpmpayProvider, SynchronizationService],
+  exports: [GpmpayProvider, SynchronizationService],
 })
 export class BankIntegrationsModule {}

@@ -10,42 +10,46 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Req,
 } from '@nestjs/common';
-import { SepayProvider } from './sepay/sepay.provider';
+import { GpmpayProvider } from './gpmpay/gpmpay.provider';
 import { SynchronizationService } from './synchronization/synchronization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, UserPayload } from '../common/current-user.decorator';
+import Decimal from 'decimal.js';
 
 @Controller('integrations')
 export class IntegrationsController {
   constructor(
-    private readonly sepayProvider: SepayProvider,
+    private readonly gpmpayProvider: GpmpayProvider,
     private readonly syncService: SynchronizationService,
     private readonly prisma: PrismaService,
   ) {}
 
   /**
-   * Public Webhook endpoint for SePay.
-   * Authenticates using SePay token and responds with { success: true }
+   * Public Webhook endpoint for GPM Pay.
+   * Handles real-time transaction notifications for MB Bank.
    */
-  @Post('sepay/webhook')
+  @Post('gpmpay/webhook')
   @HttpCode(HttpStatus.OK)
-  async handleSepayWebhook(
+  async handleGpmpayWebhook(
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Body() payload: any,
+    @Req() req: any,
   ) {
-    const isValid = await this.sepayProvider.verifyWebhook(headers, payload);
+    const rawBody = req.rawBody || JSON.stringify(payload);
+    const isValid = await this.gpmpayProvider.verifyWebhook(headers, payload, rawBody);
     if (!isValid) {
-      throw new UnauthorizedException('Invalid SePay webhook authorization');
+      throw new UnauthorizedException('Invalid GPM Pay webhook signature');
     }
 
-    const normalized = await this.sepayProvider.parseWebhook(payload);
+    const normalized = await this.gpmpayProvider.parseWebhook(payload);
     if (normalized.length === 0) {
-      return { success: true, message: 'No valid transactions found in payload' };
+      return { success: true, message: 'No actionable transactions in webhook payload' };
     }
 
-    // Default to the first user or matching account user
+    // Default to matching account user or system user
     let targetUserId: string | null = null;
     const matchingAccount = await this.prisma.account.findFirst({
       where: { accountNumber: normalized[0].accountNumber },
@@ -59,10 +63,32 @@ export class IntegrationsController {
     }
 
     if (targetUserId) {
-      await this.syncService.ingestTransactions(targetUserId, 'SEPAY', normalized);
+      await this.syncService.ingestTransactions(targetUserId, 'GPMPAY', normalized);
     }
 
     return { success: true };
+  }
+
+  /** Alias webhook for standard root path */
+  @Post('webhook')
+  @HttpCode(HttpStatus.OK)
+  async handleGenericWebhook(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: any,
+    @Req() req: any,
+  ) {
+    return this.handleGpmpayWebhook(headers, payload, req);
+  }
+
+  /** Legacy webhook alias to prevent broken external calls */
+  @Post('sepay/webhook')
+  @HttpCode(HttpStatus.OK)
+  async handleLegacySepayWebhook(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: any,
+    @Req() req: any,
+  ) {
+    return this.handleGpmpayWebhook(headers, payload, req);
   }
 
   /**
@@ -71,44 +97,34 @@ export class IntegrationsController {
   @Get('status')
   @UseGuards(JwtAuthGuard)
   async getStatus() {
-    const sepayCaps = this.sepayProvider.getCapabilities();
+    const gpmpayCaps = this.gpmpayProvider.getCapabilities();
     const lastSyncRun = await this.prisma.syncRun.findFirst({
-      where: { provider: 'SEPAY' },
+      where: { provider: 'GPMPAY' },
       orderBy: { createdAt: 'desc' },
+    });
+
+    const bankAccounts = await this.gpmpayProvider.getBankAccounts();
+    const localAccount = await this.prisma.account.findFirst({
+      where: { accountNumber: '1468651509999' },
     });
 
     return {
       providers: [
         {
-          name: 'SePay',
-          providerKey: 'SEPAY',
-          capabilities: sepayCaps,
+          name: 'GPM Pay',
+          providerKey: 'GPMPAY',
+          capabilities: gpmpayCaps,
           lastSync: lastSyncRun,
+          bankAccounts,
+          localAccount,
           status: 'CONNECTED',
-        },
-        {
-          name: 'MB Bank Web API (Trực tiếp)',
-          providerKey: 'MBBANK',
-          capabilities: {
-            providerName: 'MBBANK',
-            supportsIncoming: false,
-            supportsOutgoing: false,
-            supportsHistoricalSync: false,
-            supportsWebhook: false,
-            requiresManualVerification: true,
-            disclosures: [
-              'Chưa kích hoạt: Để đảm bảo an toàn tuyệt đối, hệ thống tuân thủ nghiêm ngặt không lưu mật khẩu hoặc session trái phép.',
-              'Đang sử dụng kênh tích hợp chuẩn qua SePay Webhook và đối soát tự động.',
-            ],
-          },
-          status: 'NOT_CONFIGURED',
         },
       ],
     };
   }
 
   /**
-   * Trigger on-demand sync from SePay API
+   * Trigger on-demand sync from GPM Pay API
    */
   @Post('sync')
   @UseGuards(JwtAuthGuard)
@@ -121,20 +137,64 @@ export class IntegrationsController {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const page = await this.sepayProvider.fetchTransactions({
+    const page = await this.gpmpayProvider.fetchTransactions({
       startDate,
-      perPage: 100,
+      perPage: 50,
     });
 
     const result = await this.syncService.ingestTransactions(
       user.userId,
-      'SEPAY',
+      'GPMPAY',
       page.transactions,
     );
 
     return {
       success: true,
       result,
+    };
+  }
+
+  /**
+   * Calibrate / Set actual real MB Bank balance manually
+   */
+  @Post('calibrate-balance')
+  @UseGuards(JwtAuthGuard)
+  async calibrateBalance(
+    @CurrentUser() user: UserPayload,
+    @Body() body: { balance: number; accountNumber?: string },
+  ) {
+    const targetAccountNum = body.accountNumber || '1468651509999';
+    let account = await this.prisma.account.findFirst({
+      where: { accountNumber: targetAccountNum, userId: user.userId },
+    });
+
+    if (!account) {
+      account = await this.prisma.account.create({
+        data: {
+          userId: user.userId,
+          displayName: 'MB Bank (1468651509999)',
+          bankName: 'MB Bank',
+          accountNumber: targetAccountNum,
+          accountHolder: 'LAI THE NGOC',
+          provider: 'GPMPAY',
+          balance: new Decimal(body.balance || 0),
+          currency: 'VND',
+        },
+      });
+    } else {
+      account = await this.prisma.account.update({
+        where: { id: account.id },
+        data: {
+          balance: new Decimal(body.balance || 0),
+          provider: 'GPMPAY',
+        },
+      });
+    }
+
+    return {
+      success: true,
+      account,
+      message: `Đã cập nhật số dư thực MB Bank: ${body.balance.toLocaleString('vi-VN')} đ`,
     };
   }
 
@@ -153,6 +213,54 @@ export class IntegrationsController {
   }
 
   /**
+   * Simulator: Create test transaction via GPM Pay SDK simulator
+   */
+  @Post('simulate')
+  @UseGuards(JwtAuthGuard)
+  async simulateTransaction(
+    @CurrentUser() user: UserPayload,
+    @Body()
+    body: {
+      amount: number;
+      transferContent: string;
+      type?: 'IN' | 'OUT';
+    },
+  ) {
+    try {
+      const res = await this.gpmpayProvider.simulateTransaction({
+        amount: body.amount,
+        transferContent: body.transferContent,
+        type: body.type || 'IN',
+      });
+
+      // Also ingest into local database so it reflects immediately
+      const normalized = await this.gpmpayProvider.parseWebhook({
+        id: res.transaction.id,
+        transferAmount: res.transaction.amount,
+        transferType: (res.transaction.type || 'IN').toLowerCase(),
+        content: res.transaction.transferContent,
+        accountNumber: '1468651509999',
+        referenceCode: res.transaction.referenceCode,
+        gateway: 'MB',
+      });
+
+      if (normalized.length > 0) {
+        await this.syncService.ingestTransactions(user.userId, 'GPMPAY', normalized);
+      }
+
+      return {
+        success: true,
+        simulation: res,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+      };
+    }
+  }
+
+  /**
    * Ingest a test webhook payload (useful for testing or staging)
    */
   @Post('mock-webhook')
@@ -168,22 +276,21 @@ export class IntegrationsController {
       gateway?: string;
     },
   ) {
-    const mockId = `MOCK_${Date.now()}`;
-    const normalized = await this.sepayProvider.parseWebhook({
+    const mockId = `GPM_MOCK_${Date.now()}`;
+    const normalized = await this.gpmpayProvider.parseWebhook({
       id: mockId,
-      gateway: payload.gateway || 'MBBank',
-      transactionDate: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      accountNumber: payload.accountNumber || 'MBBANK_DEFAULT',
-      code: `CODE_${Date.now()}`,
+      gateway: payload.gateway || 'MB',
+      transactionDate: new Date().toISOString(),
+      accountNumber: payload.accountNumber || '1468651509999',
+      referenceCode: `MB_${Date.now()}`,
       content: payload.content,
       transferType: payload.transferType,
       transferAmount: payload.transferAmount,
-      description: payload.content,
     });
 
     const result = await this.syncService.ingestTransactions(
       user.userId,
-      'SEPAY',
+      'GPMPAY',
       normalized,
     );
 

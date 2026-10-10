@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'savings', label: 'Mục tiêu', icon: Target },
-    { id: 'integrations', label: 'SePay', icon: Layers },
+    { id: 'integrations', label: 'GPM Pay', icon: Layers },
     { id: 'settings', label: 'Cài đặt', icon: Sliders },
   ];
 

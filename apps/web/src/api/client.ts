@@ -225,6 +225,20 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  async calibrateBalance(balance: number, accountNumber = '1468651509999') {
+    return this.request<any>('/integrations/calibrate-balance', {
+      method: 'POST',
+      body: JSON.stringify({ balance, accountNumber }),
+    });
+  }
+
+  async simulateGpmTransaction(data: { amount: number; transferContent: string; type?: 'IN' | 'OUT' }) {
+    return this.request<any>('/integrations/simulate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const api = new ApiClient();

@@ -177,26 +177,19 @@ export class SynchronizationService {
         },
       });
 
-      // Update account balance
-      if (tx.accumulatedBalance !== undefined) {
-        await prisma.account.update({
-          where: { id: account.id },
-          data: { balance: new Decimal(tx.accumulatedBalance) },
-        });
-      } else {
-        const delta =
-          tx.direction === TransactionDirection.INCOME
-            ? new Decimal(tx.amount)
-            : new Decimal(tx.amount).negated();
-        await prisma.account.update({
-          where: { id: account.id },
-          data: {
-            balance: {
-              increment: delta,
-            },
+      // Update account balance incrementally based on real transactions
+      const delta =
+        tx.direction === TransactionDirection.INCOME
+          ? new Decimal(tx.amount)
+          : new Decimal(tx.amount).negated();
+      await prisma.account.update({
+        where: { id: account.id },
+        data: {
+          balance: {
+            increment: delta,
           },
-        });
-      }
+        },
+      });
     });
 
     return 'INSERTED';
@@ -216,14 +209,16 @@ export class SynchronizationService {
 
     if (existing) return existing;
 
+    const isMbMain = tx.accountNumber === '1468651509999';
     return this.prisma.account.create({
       data: {
         userId,
         provider,
         accountNumber: tx.accountNumber,
-        bankName: tx.gateway || 'MB Bank',
-        displayName: `${tx.gateway || 'Bank'} (${tx.accountNumber.slice(-4)})`,
-        balance: tx.accumulatedBalance !== undefined ? new Decimal(tx.accumulatedBalance) : new Decimal(0),
+        accountHolder: isMbMain ? 'LAI THE NGOC' : undefined,
+        bankName: 'MB Bank',
+        displayName: isMbMain ? 'MB Bank (1468651509999)' : `MB Bank (${tx.accountNumber.slice(-4)})`,
+        balance: new Decimal(0),
         currency: tx.currency || 'VND',
       },
     });
