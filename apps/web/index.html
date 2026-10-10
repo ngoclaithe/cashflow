@@ -28,6 +28,9 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          for (const reg of regs) reg.update();
+        });
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(err => {
             console.log('SW registration error:', err);

@@ -1,28 +1,13 @@
-const CACHE_NAME = 'cashflow-v2-light';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.png',
-  '/apple-touch-icon.png',
-  '/icon-192.png'
-];
+const CACHE_NAME = 'cashflow-v4-network-first';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
+      return Promise.all(keys.map((key) => caches.delete(key)));
     })
   );
   self.clients.claim();
@@ -30,20 +15,14 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return; // Do not cache dynamic API requests
+  if (event.request.url.includes('/api/')) return;
 
+  // Always network-first so users always get the freshest bundle and never get stuck with stale cache
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return (
-        cached ||
-        fetch(event.request).then((response) => {
-          if (response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-      );
-    })
+    fetch(event.request)
+      .then((response) => {
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

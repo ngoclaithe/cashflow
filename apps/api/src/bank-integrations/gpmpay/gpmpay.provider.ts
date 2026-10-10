@@ -113,6 +113,12 @@ export class GpmpayProvider implements BankProvider {
 
     const items = Array.isArray(payload) ? payload : [payload];
     return items
+      .filter((item) => {
+        if (item.source === 'SIMULATED') return false;
+        if (item.referenceCode && String(item.referenceCode).startsWith('SIM-')) return false;
+        if (item.content && String(item.content).toUpperCase().includes('SIMULAT')) return false;
+        return true;
+      })
       .map((item) => this.normalizeWebhookItem(item))
       .filter((item): item is NormalizedBankTransaction => item !== null);
   }
@@ -170,7 +176,14 @@ export class GpmpayProvider implements BankProvider {
       this.logger.log(`Fetching transactions from GPM Pay SDK (limit: ${perPage})`);
       const response = await this.client.transactions.list(params);
 
-      const normalized: NormalizedBankTransaction[] = (response.data || []).map((txn) => {
+      const normalized: NormalizedBankTransaction[] = (response.data || [])
+        .filter((txn) => {
+          if (txn.source === 'SIMULATED') return false;
+          if (txn.referenceCode && txn.referenceCode.startsWith('SIM-')) return false;
+          if (txn.transferContent && txn.transferContent.toUpperCase().includes('SIMULAT')) return false;
+          return true;
+        })
+        .map((txn) => {
         const isIncome = txn.type === 'IN';
         const amount = Math.round(Number(txn.amount || 0));
         const txDate = txn.transactionTime ? new Date(txn.transactionTime) : new Date();
