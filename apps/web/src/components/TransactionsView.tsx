@@ -249,7 +249,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           <input
             type="text"
             className="form-input"
-            placeholder="Tìm theo nội dung, mã GD SePay, số tiền..."
+            placeholder="Tìm theo nội dung, mã GD GPM Pay, số tiền..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -445,7 +445,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               Không có giao dịch nào
             </div>
             <div style={{ fontSize: '13px' }}>
-              Thử tìm với từ khóa khác hoặc bấm "Đồng bộ SePay" trên thanh tiêu đề.
+              Thử tìm với từ khóa khác hoặc bấm "Sync GPM Pay" trên thanh tiêu đề.
             </div>
           </div>
         ) : (

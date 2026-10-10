@@ -151,7 +151,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={onSync}
               disabled={isSyncing}
               className="btn btn-secondary btn-sm"
-              title="Đồng bộ SePay MB Bank"
+              title="Đồng bộ GPM Pay MB Bank"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -161,7 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
             >
               <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
-              <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync SePay'}</span>
+              <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync GPM Pay'}</span>
             </button>
 
             {user ? (

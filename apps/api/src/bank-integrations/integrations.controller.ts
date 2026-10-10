@@ -80,17 +80,6 @@ export class IntegrationsController {
     return this.handleGpmpayWebhook(headers, payload, req);
   }
 
-  /** Legacy webhook alias to prevent broken external calls */
-  @Post('sepay/webhook')
-  @HttpCode(HttpStatus.OK)
-  async handleLegacySepayWebhook(
-    @Headers() headers: Record<string, string | string[] | undefined>,
-    @Body() payload: any,
-    @Req() req: any,
-  ) {
-    return this.handleGpmpayWebhook(headers, payload, req);
-  }
-
   /**
    * Get provider capabilities and integration status
    */
