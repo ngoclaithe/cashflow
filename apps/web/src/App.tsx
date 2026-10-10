@@ -6,7 +6,6 @@ import { TransactionsPage } from './pages/transactions';
 import { BudgetsPage } from './pages/budgets';
 import { SavingsPage } from './pages/savings';
 import { CategoriesPage } from './pages/categories';
-import { SettingsPage } from './pages/settings';
 import { AuthPage } from './features/auth';
 import { IosInstallPrompt } from './features/pwa';
 import { api } from './shared/api/client';
@@ -107,7 +106,6 @@ export const App: React.FC = () => {
         {activeTab === 'budgets' && <BudgetsPage />}
         {activeTab === 'savings' && <SavingsPage />}
         {activeTab === 'categories' && <CategoriesPage />}
-        {activeTab === 'settings' && <SettingsPage />}
       </main>
 
       <IosInstallPrompt />

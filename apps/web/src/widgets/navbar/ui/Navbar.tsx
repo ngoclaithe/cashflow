@@ -7,7 +7,6 @@ import {
   PieChart,
   Target,
   RefreshCw,
-  Sliders,
   LogOut,
   LogIn,
   Tags,
@@ -40,7 +39,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'categories', label: 'Danh mục', icon: Tags },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'savings', label: 'Mục tiêu', icon: Target },
-    { id: 'settings', label: 'Cài đặt', icon: Sliders },
   ];
 
   return (
