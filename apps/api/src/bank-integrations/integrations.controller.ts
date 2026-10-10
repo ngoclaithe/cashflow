@@ -114,15 +114,16 @@ export class IntegrationsController {
   @UseGuards(JwtAuthGuard)
   async triggerSync(
     @CurrentUser() user: UserPayload,
-    @Body() body: { provider?: string; days?: number },
+    @Body() body?: { provider?: string; days?: number },
+    @Query('days') queryDays?: string,
   ) {
-    const days = body.days || 3;
+    const days = body?.days || (queryDays ? parseInt(queryDays, 10) : 30);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
     const page = await this.sepayProvider.fetchTransactions({
       startDate,
-      perPage: 50,
+      perPage: 100,
     });
 
     const result = await this.syncService.ingestTransactions(
