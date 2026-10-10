@@ -17,6 +17,7 @@ import {
   Sparkles,
   Calendar,
   List,
+  Edit3,
 } from 'lucide-react';
 import { Transaction, Category, Account, TransactionDirection } from '../../../shared/types';
 import { formatVND, formatDate } from '../../../shared/lib/format';
@@ -46,6 +47,14 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
   const [activeTx, setActiveTx] = useState<Transaction | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+
+  // Edit states for existing transaction
+  const [isEditingTx, setIsEditingTx] = useState(false);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editCat, setEditCat] = useState('');
+  const [editDirection, setEditDirection] = useState<TransactionDirection>('EXPENSE');
 
   // Form states for manual add
   const [formAccount, setFormAccount] = useState('');
@@ -177,6 +186,40 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
     if (!confirm('Bạn có chắc chắn muốn xóa giao dịch này?')) return;
     await api.deleteTransaction(id);
     setActiveTx(null);
+    setIsEditingTx(false);
+    await loadData({ page: pagination.page });
+  };
+
+  const handleStartEditTx = () => {
+    if (!activeTx) return;
+    setEditAmount(activeTx.amount.toString());
+    setEditDesc(activeTx.description);
+    setEditDate(activeTx.transactionDate ? activeTx.transactionDate.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditCat(activeTx.categoryId || '');
+    setEditDirection(activeTx.direction);
+    setIsEditingTx(true);
+  };
+
+  const handleSaveEditTx = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTx) return;
+    await api.updateTransaction(activeTx.id, {
+      amount: parseFloat(editAmount),
+      description: editDesc,
+      transactionDate: new Date(editDate).toISOString(),
+      categoryId: editCat || undefined,
+      direction: editDirection,
+    });
+    setActiveTx({
+      ...activeTx,
+      amount: parseFloat(editAmount),
+      description: editDesc,
+      transactionDate: new Date(editDate).toISOString(),
+      categoryId: editCat || null,
+      direction: editDirection,
+      category: categories.find((c) => c.id === editCat),
+    });
+    setIsEditingTx(false);
     await loadData({ page: pagination.page });
   };
 
@@ -596,93 +639,194 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
 
       {/* Detail Bottom Sheet / Modal */}
       {activeTx && (
-        <div className="modal-overlay" onClick={() => setActiveTx(null)}>
+        <div className="modal-overlay" onClick={() => { setActiveTx(null); setIsEditingTx(false); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Chi tiết giao dịch</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 700 }}>
+                  {isEditingTx ? 'Chỉnh sửa giao dịch' : 'Chi tiết giao dịch'}
+                </h3>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatDate(activeTx.transactionDate)}</div>
               </div>
-              <button onClick={() => setActiveTx(null)} className="btn btn-ghost" style={{ padding: '6px' }}>
+              <button onClick={() => { setActiveTx(null); setIsEditingTx(false); }} className="btn btn-ghost" style={{ padding: '6px' }}>
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ textAlign: 'center', padding: '16px', background: 'var(--bg-input)', borderRadius: '12px', marginBottom: '16px' }}>
-              <div
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 800,
-                  fontFamily: 'var(--font-mono)',
-                  color: activeTx.direction === 'INCOME' ? 'var(--income)' : 'var(--expense)',
-                }}
-              >
-                {activeTx.direction === 'INCOME' ? '+' : '-'}
-                {formatVND(activeTx.amount)}
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-primary)', marginTop: '6px', fontWeight: 600 }}>
-                {activeTx.description}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', marginBottom: '16px' }}>
-              {activeTx.code && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Mã tham chiếu:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{activeTx.code}</span>
-                    <button onClick={() => handleCopyCode(activeTx.code!)} className="btn btn-ghost" style={{ padding: '4px' }}>
-                      {copiedId ? <CheckCircle2 size={13} color="var(--income)" /> : <Copy size={13} />}
+            {isEditingTx ? (
+              <form onSubmit={handleSaveEditTx} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Loại giao dịch</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditDirection('EXPENSE')}
+                      className={`btn ${editDirection === 'EXPENSE' ? 'btn-danger' : 'btn-secondary'} btn-sm`}
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      Tiền ra (Chi)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditDirection('INCOME')}
+                      className={`btn ${editDirection === 'INCOME' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      Tiền vào (Thu)
                     </button>
                   </div>
                 </div>
-              )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Danh mục hiện tại:</span>
-                <span className="badge" style={{ background: `${activeTx.category?.color || '#94a3b8'}22`, color: activeTx.category?.color || 'var(--text-primary)' }}>
-                  {activeTx.category?.name || 'Chưa phân loại'}
-                </span>
-              </div>
-            </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Số tiền (VND)</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    required
+                  />
+                </div>
 
-            {/* Quick Reclassify Palette */}
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Đổi danh mục nhanh:
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {categories.map((c) => (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Nội dung giao dịch</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Ngày giao dịch</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Danh mục</label>
+                  <select
+                    className="form-select"
+                    value={editCat}
+                    onChange={(e) => setEditCat(e.target.value)}
+                  >
+                    <option value="">-- Chưa phân loại --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                   <button
-                    key={c.id}
-                    onClick={() => handleQuickReclassify(c.id)}
+                    type="button"
+                    onClick={() => setIsEditingTx(false)}
+                    className="btn btn-secondary"
+                    style={{ flex: 1, justifyContent: 'center' }}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ flex: 1, justifyContent: 'center' }}
+                  >
+                    Lưu thay đổi
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div style={{ textAlign: 'center', padding: '16px', background: 'var(--bg-input)', borderRadius: '12px', marginBottom: '16px' }}>
+                  <div
                     style={{
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      border: activeTx.categoryId === c.id ? `2px solid ${c.color || 'var(--primary)'}` : '1px solid var(--border-subtle)',
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
+                      fontSize: '24px',
+                      fontWeight: 800,
+                      fontFamily: 'var(--font-mono)',
+                      color: activeTx.direction === 'INCOME' ? 'var(--income)' : 'var(--expense)',
                     }}
                   >
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    {activeTx.direction === 'INCOME' ? '+' : '-'}
+                    {formatVND(activeTx.amount)}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-primary)', marginTop: '6px', fontWeight: 600 }}>
+                    {activeTx.description}
+                  </div>
+                </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={handleCreateRuleFromTx} className="btn btn-secondary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
-                <Sparkles size={14} color="#f59e0b" />
-                <span>Tạo quy tắc tự động</span>
-              </button>
-              <button onClick={() => handleDelete(activeTx.id)} className="btn btn-danger btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
-                <Trash2 size={14} />
-                <span>Xóa giao dịch</span>
-              </button>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', marginBottom: '16px' }}>
+                  {activeTx.code && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Mã tham chiếu:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{activeTx.code}</span>
+                        <button onClick={() => handleCopyCode(activeTx.code!)} className="btn btn-ghost" style={{ padding: '4px' }}>
+                          {copiedId ? <CheckCircle2 size={13} color="var(--income)" /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Danh mục hiện tại:</span>
+                    <span className="badge" style={{ background: `${activeTx.category?.color || '#94a3b8'}22`, color: activeTx.category?.color || 'var(--text-primary)' }}>
+                      {activeTx.category?.name || 'Chưa phân loại'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Reclassify Palette */}
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
+                    Đổi danh mục nhanh:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {categories.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => handleQuickReclassify(c.id)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          border: activeTx.categoryId === c.id ? `2px solid ${c.color || 'var(--primary)'}` : '1px solid var(--border-subtle)',
+                          background: 'var(--bg-input)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={handleStartEditTx} className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    <Edit3 size={14} />
+                    <span>Sửa</span>
+                  </button>
+                  <button onClick={handleCreateRuleFromTx} className="btn btn-secondary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    <Sparkles size={14} color="#f59e0b" />
+                    <span>Tạo quy tắc</span>
+                  </button>
+                  <button onClick={() => handleDelete(activeTx.id)} className="btn btn-danger btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    <Trash2 size={14} />
+                    <span>Xóa</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

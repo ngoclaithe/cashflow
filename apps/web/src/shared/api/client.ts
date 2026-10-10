@@ -103,6 +103,13 @@ export class ApiClient {
     });
   }
 
+  async updateTransaction(id: string, data: any) {
+    return this.request<any>(`/transactions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteTransaction(id: string) {
     return this.request<any>(`/transactions/${id}`, {
       method: 'DELETE',
@@ -121,6 +128,13 @@ export class ApiClient {
     });
   }
 
+  async updateCategory(id: string, data: any) {
+    return this.request<any>(`/categories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteCategory(id: string) {
     return this.request<any>(`/categories/${id}`, {
       method: 'DELETE',
@@ -135,6 +149,13 @@ export class ApiClient {
   async createAccount(data: any) {
     return this.request<any>('/accounts', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAccount(id: string, data: any) {
+    return this.request<any>(`/accounts/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
@@ -197,6 +218,13 @@ export class ApiClient {
   async createRule(data: any) {
     return this.request<any>('/categorization-rules', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateRule(id: string, data: any) {
+    return this.request<any>(`/categorization-rules/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

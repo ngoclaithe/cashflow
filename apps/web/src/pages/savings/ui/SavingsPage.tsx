@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Plus, Trash2, Calendar, Sparkles } from 'lucide-react';
+import { Target, Plus, Trash2, Edit3, Calendar, Sparkles } from 'lucide-react';
 import { SavingsGoal } from '../../../shared/types';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
@@ -9,6 +9,7 @@ export const SavingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currentAmount, setCurrentAmount] = useState('');
@@ -27,18 +28,46 @@ export const SavingsPage: React.FC = () => {
     loadData();
   }, []);
 
+  const handleOpenAdd = () => {
+    setEditingGoal(null);
+    setName('');
+    setTargetAmount('');
+    setCurrentAmount('');
+    setTargetDate('2027-03-10');
+    setIsAddOpen(true);
+  };
+
+  const handleOpenEdit = (g: SavingsGoal) => {
+    setEditingGoal(g);
+    setName(g.name);
+    setTargetAmount(g.targetAmount.toString());
+    setCurrentAmount(g.currentAmount.toString());
+    setTargetDate(g.targetDate ? g.targetDate.slice(0, 10) : '2027-03-10');
+    setIsAddOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !targetAmount || !targetDate) return;
 
-    await api.createSavingsGoal({
-      name,
-      targetAmount: parseFloat(targetAmount),
-      currentAmount: currentAmount ? parseFloat(currentAmount) : 0,
-      targetDate,
-    });
+    if (editingGoal) {
+      await api.updateSavingsGoal(editingGoal.id, {
+        name,
+        targetAmount: parseFloat(targetAmount),
+        currentAmount: currentAmount ? parseFloat(currentAmount) : 0,
+        targetDate,
+      });
+    } else {
+      await api.createSavingsGoal({
+        name,
+        targetAmount: parseFloat(targetAmount),
+        currentAmount: currentAmount ? parseFloat(currentAmount) : 0,
+        targetDate,
+      });
+    }
 
     setIsAddOpen(false);
+    setEditingGoal(null);
     setName('');
     setTargetAmount('');
     setCurrentAmount('');
@@ -66,7 +95,7 @@ export const SavingsPage: React.FC = () => {
           </div>
         </div>
 
-        <button onClick={() => setIsAddOpen(true)} className="btn btn-primary">
+        <button onClick={handleOpenAdd} className="btn btn-primary">
           <Plus size={16} />
           <span>Thêm mục tiêu mới</span>
         </button>
@@ -99,14 +128,24 @@ export const SavingsPage: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                onClick={() => handleDeleteGoal(g.id)}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '6px' }}
-                title="Xóa mục tiêu"
-              >
-                <Trash2 size={14} color="var(--expense)" />
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => handleOpenEdit(g)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 8px' }}
+                  title="Chỉnh sửa mục tiêu"
+                >
+                  <Edit3 size={14} color="var(--primary)" />
+                </button>
+                <button
+                  onClick={() => handleDeleteGoal(g.id)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 8px' }}
+                  title="Xóa mục tiêu"
+                >
+                  <Trash2 size={14} color="var(--expense)" />
+                </button>
+              </div>
             </div>
 
             <div>
@@ -165,11 +204,13 @@ export const SavingsPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Add Modal */}
+      {/* Add / Edit Modal */}
       {isAddOpen && (
         <div className="modal-overlay" onClick={() => setIsAddOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', marginBottom: '14px' }}>Thêm mục tiêu tích lũy mới</h3>
+            <h3 style={{ fontSize: '18px', marginBottom: '14px' }}>
+              {editingGoal ? 'Chỉnh sửa mục tiêu tích lũy' : 'Thêm mục tiêu tích lũy mới'}
+            </h3>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div className="form-group">
                 <label className="form-label">Tên mục tiêu (VD: Quỹ tích lũy 60 Triệu)</label>
@@ -230,7 +271,7 @@ export const SavingsPage: React.FC = () => {
                   className="btn btn-primary"
                   style={{ flex: 1, justifyContent: 'center' }}
                 >
-                  Lưu mục tiêu
+                  {editingGoal ? 'Cập nhật mục tiêu' : 'Lưu mục tiêu'}
                 </button>
               </div>
             </form>

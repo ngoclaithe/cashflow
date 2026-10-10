@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus,
   Trash2,
+  Edit3,
   Send,
   BellRing,
 } from 'lucide-react';
@@ -13,17 +14,19 @@ export const SettingsPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // New Rule Form Modal
+  // Rule Form Modal
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<CategorizationRule | null>(null);
   const [ruleName, setRuleName] = useState('');
   const [rulePriority, setRulePriority] = useState('50');
-  const [ruleField, setRuleField] = useState<'DESCRIPTION' | 'COUNTERPARTY'>('DESCRIPTION');
-  const [ruleOp, setRuleOp] = useState<'CONTAINS' | 'EQUALS' | 'STARTS_WITH'>('CONTAINS');
+  const [ruleField, setRuleField] = useState<CategorizationRule['field']>('DESCRIPTION');
+  const [ruleOp, setRuleOp] = useState<CategorizationRule['operator']>('CONTAINS');
   const [ruleValue, setRuleValue] = useState('');
   const [ruleCategoryId, setRuleCategoryId] = useState('');
 
-  // New Category Form Modal
+  // Category Form Modal
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [catName, setCatName] = useState('');
   const [catType, setCatType] = useState<'EXPENSE' | 'INCOME' | 'TRANSFER'>('EXPENSE');
   const [catColor, setCatColor] = useState('#6366f1');
@@ -52,20 +55,54 @@ export const SettingsPage: React.FC = () => {
     loadData();
   }, []);
 
-  const handleCreateRule = async (e: React.FormEvent) => {
+  const handleOpenAddRule = () => {
+    setEditingRule(null);
+    setRuleName('');
+    setRulePriority('50');
+    setRuleField('DESCRIPTION');
+    setRuleOp('CONTAINS');
+    setRuleValue('');
+    if (categories.length > 0) setRuleCategoryId(categories[0].id);
+    setIsRuleModalOpen(true);
+  };
+
+  const handleOpenEditRule = (r: CategorizationRule) => {
+    setEditingRule(r);
+    setRuleName(r.name);
+    setRulePriority(r.priority.toString());
+    setRuleField(r.field);
+    setRuleOp(r.operator);
+    setRuleValue(r.value);
+    setRuleCategoryId(r.categoryId);
+    setIsRuleModalOpen(true);
+  };
+
+  const handleSaveRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ruleName || !ruleValue || !ruleCategoryId) return;
 
-    await api.createRule({
-      name: ruleName,
-      priority: parseInt(rulePriority, 10),
-      field: ruleField,
-      operator: ruleOp,
-      value: ruleValue,
-      categoryId: ruleCategoryId,
-    });
+    if (editingRule) {
+      await api.updateRule(editingRule.id, {
+        name: ruleName,
+        priority: parseInt(rulePriority, 10),
+        field: ruleField,
+        operator: ruleOp,
+        value: ruleValue,
+        categoryId: ruleCategoryId,
+      });
+    } else {
+      await api.createRule({
+        name: ruleName,
+        priority: parseInt(rulePriority, 10),
+        field: ruleField,
+        operator: ruleOp,
+        value: ruleValue,
+        categoryId: ruleCategoryId,
+      });
+    }
 
     setIsRuleModalOpen(false);
+    setEditingRule(null);
     setRuleName('');
     setRuleValue('');
     await loadData();
@@ -77,17 +114,42 @@ export const SettingsPage: React.FC = () => {
     await loadData();
   };
 
-  const handleCreateCat = async (e: React.FormEvent) => {
+  const handleOpenAddCat = () => {
+    setEditingCategory(null);
+    setCatName('');
+    setCatType('EXPENSE');
+    setCatColor('#6366f1');
+    setIsCatModalOpen(true);
+  };
+
+  const handleOpenEditCat = (c: Category) => {
+    setEditingCategory(c);
+    setCatName(c.name);
+    setCatType(c.type);
+    setCatColor(c.color || '#6366f1');
+    setIsCatModalOpen(true);
+  };
+
+  const handleSaveCat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName) return;
 
-    await api.createCategory({
-      name: catName,
-      type: catType,
-      color: catColor,
-    });
+    if (editingCategory) {
+      await api.updateCategory(editingCategory.id, {
+        name: catName,
+        type: catType,
+        color: catColor,
+      });
+    } else {
+      await api.createCategory({
+        name: catName,
+        type: catType,
+        color: catColor,
+      });
+    }
 
     setIsCatModalOpen(false);
+    setEditingCategory(null);
     setCatName('');
     await loadData();
   };
@@ -184,7 +246,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={() => setIsRuleModalOpen(true)} className="btn btn-primary btn-sm">
+          <button onClick={handleOpenAddRule} className="btn btn-primary btn-sm">
             <Plus size={14} /> Thêm quy tắc
           </button>
         </div>
@@ -235,14 +297,24 @@ export const SettingsPage: React.FC = () => {
                       </span>
                     </td>
                     <td style={{ padding: '12px 18px', textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleDeleteRule(rule.id)}
-                        className="btn btn-danger btn-sm"
-                        style={{ padding: '6px' }}
-                        title="Xóa quy tắc"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => handleOpenEditRule(rule)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '6px 8px' }}
+                          title="Sửa quy tắc"
+                        >
+                          <Edit3 size={14} color="var(--primary)" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRule(rule.id)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '6px 8px' }}
+                          title="Xóa quy tắc"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -272,7 +344,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={() => setIsCatModalOpen(true)} className="btn btn-secondary btn-sm">
+          <button onClick={handleOpenAddCat} className="btn btn-secondary btn-sm">
             <Plus size={14} /> Thêm danh mục
           </button>
         </div>
@@ -310,25 +382,37 @@ export const SettingsPage: React.FC = () => {
                 <span style={{ fontWeight: 600, fontSize: '13px' }}>{c.name}</span>
               </div>
 
-              {!c.isSystem && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <button
-                  onClick={() => handleDeleteCategory(c.id)}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  onClick={() => handleOpenEditCat(c)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: '4px' }}
+                  title="Sửa danh mục"
                 >
-                  <Trash2 size={14} />
+                  <Edit3 size={14} />
                 </button>
-              )}
+                {!c.isSystem && (
+                  <button
+                    onClick={() => handleDeleteCategory(c.id)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--expense)', cursor: 'pointer', padding: '4px' }}
+                    title="Xóa danh mục"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Modal: Add Rule */}
+      {/* Modal: Add / Edit Rule */}
       {isRuleModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>Tạo quy tắc phân loại mới</h3>
-            <form onSubmit={handleCreateRule}>
+        <div className="modal-overlay" onClick={() => setIsRuleModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>
+              {editingRule ? 'Chỉnh sửa quy tắc phân loại' : 'Tạo quy tắc phân loại mới'}
+            </h3>
+            <form onSubmit={handleSaveRule}>
               <div className="form-group">
                 <label className="form-label">Tên quy tắc</label>
                 <input
@@ -413,7 +497,7 @@ export const SettingsPage: React.FC = () => {
                   Hủy
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Lưu quy tắc
+                  {editingRule ? 'Cập nhật quy tắc' : 'Lưu quy tắc'}
                 </button>
               </div>
             </form>
@@ -421,12 +505,14 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Add Category */}
+      {/* Modal: Add / Edit Category */}
       {isCatModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>Thêm danh mục mới</h3>
-            <form onSubmit={handleCreateCat}>
+        <div className="modal-overlay" onClick={() => setIsCatModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>
+              {editingCategory ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
+            </h3>
+            <form onSubmit={handleSaveCat}>
               <div className="form-group">
                 <label className="form-label">Tên danh mục</label>
                 <input
@@ -468,7 +554,7 @@ export const SettingsPage: React.FC = () => {
                   Hủy
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Lưu danh mục
+                  {editingCategory ? 'Cập nhật danh mục' : 'Lưu danh mục'}
                 </button>
               </div>
             </form>
