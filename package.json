@@ -1,0 +1,30 @@
+{
+  "name": "cashflow",
+  "version": "1.0.0",
+  "description": "Personal Finance Tracker - Cashflow",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build:api": "npm --workspace=api run build",
+    "build:web": "npm --workspace=web run build",
+    "build": "npm run build:api && npm run build:web",
+    "test:api": "npm --workspace=api run test",
+    "test": "npm run test:api",
+    "dev:api": "npm --workspace=api run start:dev",
+    "dev:web": "npm --workspace=web run dev",
+    "lint:api": "npm --workspace=api run lint",
+    "prisma:generate": "npm --workspace=api run prisma:generate",
+    "prisma:migrate": "npm --workspace=api run prisma:migrate"
+  },
+  "keywords": [
+    "finance",
+    "cashflow",
+    "nest",
+    "react",
+    "sepay"
+  ],
+  "author": "",
+  "license": "ISC"
+}
