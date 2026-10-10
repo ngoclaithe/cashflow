@@ -2,28 +2,39 @@ import { create } from 'zustand';
 
 export type NavigationTab = 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'savings' | 'calendar';
 
-interface NavigationState {
-  activeTab: NavigationTab;
-  setActiveTab: (tab: NavigationTab | string, pushHistory?: boolean) => void;
-  syncWithUrl: () => void;
-}
-
-const VALID_TABS: NavigationTab[] = [
+export const VALID_TABS: readonly NavigationTab[] = [
   'dashboard',
   'transactions',
   'categories',
   'budgets',
   'savings',
   'calendar',
-];
+] as const;
 
-const getTabFromUrl = (): NavigationTab => {
+const STORAGE_KEY = 'cashflow_active_tab';
+
+export const getInitialTab = (): NavigationTab => {
   try {
     if (typeof window === 'undefined') return 'dashboard';
+
+    // 1. Highest priority: URL Query Param (?tab=...)
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab') as NavigationTab;
     if (tabParam && VALID_TABS.includes(tabParam)) {
+      try {
+        localStorage.setItem(STORAGE_KEY, tabParam);
+      } catch {}
       return tabParam;
+    }
+
+    // 2. Secondary priority: localStorage
+    const savedTab = localStorage.getItem(STORAGE_KEY) as NavigationTab;
+    if (savedTab && VALID_TABS.includes(savedTab)) {
+      // Sync URL address bar immediately so F5 or bookmark retains it
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', savedTab);
+      window.history.replaceState({ tab: savedTab }, '', url.toString());
+      return savedTab;
     }
   } catch {
     // fallback
@@ -31,17 +42,23 @@ const getTabFromUrl = (): NavigationTab => {
   return 'dashboard';
 };
 
+interface NavigationState {
+  activeTab: NavigationTab;
+  setActiveTab: (tab: NavigationTab | string, pushHistory?: boolean) => void;
+  syncWithUrl: () => void;
+}
+
 export const useNavigationStore = create<NavigationState>((set, get) => {
-  // Sync URL when tab changes
-  const updateUrlParam = (tab: NavigationTab, pushHistory = true) => {
+  const syncToBrowser = (tab: NavigationTab, pushHistory = true) => {
     try {
       if (typeof window === 'undefined') return;
+
+      // 1. Persist to localStorage
+      localStorage.setItem(STORAGE_KEY, tab);
+
+      // 2. Persist to URL search params
       const url = new URL(window.location.href);
-      if (tab === 'dashboard') {
-        url.searchParams.delete('tab');
-      } else {
-        url.searchParams.set('tab', tab);
-      }
+      url.searchParams.set('tab', tab);
 
       if (pushHistory) {
         window.history.pushState({ tab }, '', url.toString());
@@ -54,19 +71,23 @@ export const useNavigationStore = create<NavigationState>((set, get) => {
   };
 
   return {
-    activeTab: getTabFromUrl(),
+    activeTab: getInitialTab(),
 
     setActiveTab: (tab: NavigationTab | string, pushHistory = true) => {
       const validTab = VALID_TABS.includes(tab as NavigationTab) ? (tab as NavigationTab) : 'dashboard';
-      if (get().activeTab === validTab) return;
+      if (get().activeTab === validTab) {
+        // Ensure browser URL and localStorage are synced even if clicking active tab
+        syncToBrowser(validTab, false);
+        return;
+      }
       set({ activeTab: validTab });
-      updateUrlParam(validTab, pushHistory);
+      syncToBrowser(validTab, pushHistory);
     },
 
     syncWithUrl: () => {
-      const tabFromUrl = getTabFromUrl();
-      if (get().activeTab !== tabFromUrl) {
-        set({ activeTab: tabFromUrl });
+      const currentTab = getInitialTab();
+      if (get().activeTab !== currentTab) {
+        set({ activeTab: currentTab });
       }
     },
   };
@@ -76,5 +97,10 @@ export const useNavigationStore = create<NavigationState>((set, get) => {
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', () => {
     useNavigationStore.getState().syncWithUrl();
+  });
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      useNavigationStore.getState().syncWithUrl();
+    }
   });
 }

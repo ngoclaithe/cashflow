@@ -13,12 +13,13 @@ import { User } from './shared/types';
 import { useNavigationStore, NavigationTab } from './shared/stores';
 
 export const App: React.FC = () => {
-  const { activeTab, setActiveTab } = useNavigationStore();
+  const { activeTab, setActiveTab, syncWithUrl } = useNavigationStore();
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
+    syncWithUrl();
     checkAuth();
   }, []);
 
@@ -39,6 +40,9 @@ export const App: React.FC = () => {
 
   const handleLogout = () => {
     api.clearToken();
+    try {
+      localStorage.removeItem('cashflow_active_tab');
+    } catch {}
     setUser(null);
     setActiveTab('dashboard');
   };
