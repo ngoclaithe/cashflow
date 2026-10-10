@@ -12,22 +12,23 @@ import { TransactionDirection } from '@prisma/client';
 
 @Injectable()
 export class SepayProvider implements BankProvider {
+  readonly providerName = 'SEPAY';
   private readonly logger = new Logger(SepayProvider.name);
 
   constructor(private readonly config: ConfigService) {}
 
   getCapabilities(): BankProviderCapabilities {
     return {
-      providerName: 'SEPAY',
+      providerName: this.providerName,
       supportsIncoming: true,
-      supportsOutgoing: true, // Note: outgoing depends on bank and SePay plan
+      supportsOutgoing: true,
       supportsHistoricalSync: true,
       supportsWebhook: true,
       requiresManualVerification: false,
       disclosures: [
+        'Dữ liệu biến động số dư được đồng bộ qua cổng kết nối SePay API v2.',
         'SePay hỗ trợ nhận biến động số dư qua Webhook real-time.',
-        'Hỗ trợ truy vấn lịch sử giao dịch qua SePay API v2.',
-        'Giao dịch chi (tiền ra) phụ thuộc vào gói tài khoản ngân hàng và quyền truy cập cấp cho SePay.',
+        'Giao dịch chi (tiền ra) và thu (tiền vào) được phân tích tự động từ sao kê.',
       ],
     };
   }
@@ -72,7 +73,11 @@ export class SepayProvider implements BankProvider {
 
   async fetchTransactions(options: TransactionSyncOptions): Promise<BankSyncPage> {
     const apiKey = this.config.get<string>('SEPAY_API_KEY');
-    const apiUrl = this.config.get<string>('SEPAY_API_URL') || 'https://userapi.sepay.vn/v2';
+    const apiUrl = this.config.get<string>('SEPAY_API_URL') || 'https://my.sepay.vn/userapi';
+    const targetAccount =
+      options.accountNumber ||
+      this.config.get<string>('SEPAY_ACCOUNT_NUMBER') ||
+      '1468651509999';
 
     if (!apiKey || apiKey.startsWith('mock_')) {
       this.logger.log('Using mock mode for SePay fetchTransactions (no live API key)');
@@ -84,39 +89,62 @@ export class SepayProvider implements BankProvider {
     }
 
     try {
-      const page = options.page || 1;
-      const perPage = options.perPage || 20;
-
+      const perPage = options.perPage || 100;
       const params: Record<string, any> = {
-        page,
-        per_page: perPage,
+        limit: perPage,
       };
 
-      if (options.startDate) {
-        params.transaction_date_from = options.startDate.toISOString().replace('T', ' ').slice(0, 19);
-      }
-      if (options.endDate) {
-        params.transaction_date_to = options.endDate.toISOString().replace('T', ' ').slice(0, 19);
+      if (targetAccount && targetAccount !== 'DEFAULT_ACCOUNT') {
+        params.account_number = targetAccount;
       }
 
-      const response = await axios.get(`${apiUrl}/transactions`, {
+      if (options.startDate) {
+        params.transaction_date_min = options.startDate
+          .toISOString()
+          .replace('T', ' ')
+          .slice(0, 19);
+      }
+      if (options.endDate) {
+        params.transaction_date_max = options.endDate
+          .toISOString()
+          .replace('T', ' ')
+          .slice(0, 19);
+      }
+      if (options.cursor) {
+        params.since_id = options.cursor;
+      }
+
+      // SePay docs: GET https://my.sepay.vn/userapi/transactions/list
+      const endpoint = apiUrl.endsWith('/transactions/list')
+        ? apiUrl
+        : `${apiUrl.replace(/\/+$/, '')}/transactions/list`;
+
+      this.logger.log(`Fetching transactions from SePay: ${endpoint} for account ${params.account_number || 'ALL'}`);
+
+      const response = await axios.get(endpoint, {
         params,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      const rawList = response.data?.data || response.data?.transactions || [];
+      const rawList =
+        response.data?.transactions ||
+        response.data?.data ||
+        [];
+
       const normalized = rawList
         .map((item: any) => this.normalizeTransaction(item))
         .filter((item: any): item is NormalizedBankTransaction => item !== null);
 
+      this.logger.log(`Successfully fetched and normalized ${normalized.length} transactions from SePay`);
+
       return {
         transactions: normalized,
         hasMore: normalized.length >= perPage,
-        total: response.data?.total || normalized.length,
+        total: response.data?.count_transactions || normalized.length,
       };
     } catch (error: any) {
       this.logger.error(`Failed to fetch transactions from SePay API: ${error.message}`);
@@ -132,20 +160,61 @@ export class SepayProvider implements BankProvider {
 
     // Parse date
     let date = new Date();
-    if (item.transactionDate || item.transaction_date) {
-      date = new Date(item.transactionDate || item.transaction_date);
+    const dateStr = item.transaction_date || item.transactionDate;
+    if (dateStr) {
+      date = new Date(dateStr);
       if (isNaN(date.getTime())) {
         date = new Date();
       }
     }
 
-    // Direction: 'in' => INCOME, 'out' => EXPENSE
-    const typeStr = String(item.transferType || item.transfer_type || 'in').toLowerCase();
-    const direction = typeStr === 'out' ? TransactionDirection.EXPENSE : TransactionDirection.INCOME;
+    // Amount & Direction: Check amount_in / amount_out (SePay API v2 standard)
+    let amount = 0;
+    let direction: TransactionDirection = TransactionDirection.EXPENSE;
 
-    // Amount: always absolute positive number
-    const rawAmount = item.transferAmount || item.transfer_amount || item.amount || 0;
-    const amount = Math.abs(Number(rawAmount));
+    const amountIn = item.amount_in !== undefined && item.amount_in !== null ? Number(item.amount_in) : 0;
+    const amountOut = item.amount_out !== undefined && item.amount_out !== null ? Number(item.amount_out) : 0;
+
+    if (amountIn > 0) {
+      amount = amountIn;
+      direction = TransactionDirection.INCOME;
+    } else if (amountOut > 0) {
+      amount = amountOut;
+      direction = TransactionDirection.EXPENSE;
+    } else {
+      // Fallback for Webhook payloads: transferType & transferAmount
+      const rawAmount = Number(item.transferAmount || item.transfer_amount || item.amount || 0);
+      amount = Math.abs(rawAmount);
+      const typeStr = String(item.transferType || item.transfer_type || 'in').toLowerCase();
+      direction = typeStr === 'out' ? TransactionDirection.EXPENSE : TransactionDirection.INCOME;
+    }
+
+    const description =
+      item.transaction_content ||
+      item.transactionContent ||
+      item.content ||
+      item.description ||
+      '';
+
+    const code =
+      item.code ||
+      item.reference_number ||
+      item.referenceNumber ||
+      item.referenceCode ||
+      undefined;
+
+    const fallbackAccount = this.config.get<string>('SEPAY_ACCOUNT_NUMBER') || '1468651509999';
+    const accountNumber = String(
+      item.account_number ||
+      item.accountNumber ||
+      fallbackAccount
+    );
+
+    const gateway =
+      item.bank_brand_name ||
+      item.bankBrandName ||
+      item.gateway ||
+      'MBBank';
 
     const accumulatedBalance = item.accumulated ? Number(item.accumulated) : undefined;
 
@@ -155,11 +224,11 @@ export class SepayProvider implements BankProvider {
       amount,
       currency: 'VND',
       direction,
-      description: item.content || item.description || '',
-      counterparty: item.subAccount || item.gateway || undefined,
-      code: item.code || item.referenceCode || undefined,
-      accountNumber: String(item.accountNumber || item.account_number || 'DEFAULT_ACCOUNT'),
-      gateway: item.gateway || 'MBBank',
+      description,
+      counterparty: item.sub_account || item.subAccount || item.gateway || undefined,
+      code,
+      accountNumber,
+      gateway,
       accumulatedBalance,
       rawPayload: item,
     };

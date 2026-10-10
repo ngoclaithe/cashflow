@@ -99,16 +99,19 @@ async function main() {
       userId_provider_accountNumber: {
         userId: user.id,
         provider: 'MBBANK',
-        accountNumber: 'MBBANK_DEFAULT',
+        accountNumber: '1468651509999',
       },
     },
-    update: {},
+    update: {
+      accountNumber: '1468651509999',
+      displayName: 'MB Bank (1468651509999)',
+    },
     create: {
       userId: user.id,
       provider: 'MBBANK',
       bankName: 'MB Bank',
-      accountNumber: 'MBBANK_DEFAULT',
-      displayName: 'MB Bank Chính',
+      accountNumber: '1468651509999',
+      displayName: 'MB Bank (1468651509999)',
       balance: 18000000,
       currency: 'VND',
     },
