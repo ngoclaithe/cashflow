@@ -64,8 +64,8 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
   const [formCat, setFormCat] = useState('');
   const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const loadData = async (filters: any = {}) => {
-    setLoading(true);
+  const loadData = async (filters: any = {}, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const [txRes, catRes, accRes] = await Promise.all([
         api.getTransactions(filters).catch(() => ({ items: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 1 } })),
@@ -80,7 +80,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
         setFormAccount(accRes[0].id);
       }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -125,13 +125,27 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
 
   const handleQuickReclassify = async (categoryId: string) => {
     if (!activeTx) return;
-    await api.reclassifyTransaction(activeTx.id, categoryId);
-    setActiveTx({
+    const targetCat = categories.find((c) => c.id === categoryId);
+    const updatedTx: Transaction = {
       ...activeTx,
       categoryId,
-      category: categories.find((c) => c.id === categoryId),
+      category: targetCat,
+      userCategoryOverride: true,
+    };
+
+    // 1. In-place optimistic update for active modal
+    setActiveTx(updatedTx);
+
+    // 2. In-place optimistic update for the background feed (ZERO page re-render, ZERO flicker!)
+    setTransactions((prev) =>
+      prev.map((t) => (t.id === activeTx.id ? updatedTx : t))
+    );
+
+    // 3. Fire API asynchronously without blocking or flickering the page
+    api.reclassifyTransaction(activeTx.id, categoryId).catch((err) => {
+      console.error('Reclassify failed:', err);
+      loadData({ page: pagination.page }, true);
     });
-    await loadData({ page: pagination.page });
   };
 
   const handleCreateRuleFromTx = async () => {
@@ -145,16 +159,20 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
       return;
     }
 
-    await api.createRule({
-      name: `Quy tắc: ${ruleKeywords.trim().toUpperCase()}`,
-      field: 'DESCRIPTION',
-      operator: 'CONTAINS',
-      value: ruleKeywords.trim().toUpperCase(),
-      categoryId: activeTx.categoryId,
-      priority: 50,
-      isActive: true,
-    });
-    alert(`Đã lưu quy tắc tự động cho từ khóa "${ruleKeywords.trim().toUpperCase()}"!`);
+    try {
+      await api.createRule({
+        name: `Quy tắc: ${ruleKeywords.trim().toUpperCase()}`,
+        field: 'DESCRIPTION',
+        operator: 'CONTAINS',
+        value: ruleKeywords.trim().toUpperCase(),
+        categoryId: activeTx.categoryId,
+        priority: 50,
+        isActive: true,
+      });
+      alert(`Đã lưu quy tắc tự động cho từ khóa "${ruleKeywords.trim().toUpperCase()}"!`);
+    } catch (err: any) {
+      alert(`Lỗi lưu quy tắc: ${err.message || 'Thất bại'}`);
+    }
   };
 
   const handleCopyCode = (code: string) => {
@@ -179,15 +197,23 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
     setIsAddOpen(false);
     setFormAmount('');
     setFormDesc('');
-    await loadData();
+    await loadData({}, true);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa giao dịch này?')) return;
-    await api.deleteTransaction(id);
+    // In-place optimistic remove
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
     setActiveTx(null);
     setIsEditingTx(false);
-    await loadData({ page: pagination.page });
+
+    try {
+      await api.deleteTransaction(id);
+      loadData({ page: pagination.page }, true); // silent background sync
+    } catch (err) {
+      console.error('Delete failed:', err);
+      loadData({ page: pagination.page }, false);
+    }
   };
 
   const handleStartEditTx = () => {
@@ -203,14 +229,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
   const handleSaveEditTx = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeTx) return;
-    await api.updateTransaction(activeTx.id, {
-      amount: parseFloat(editAmount),
-      description: editDesc,
-      transactionDate: new Date(editDate).toISOString(),
-      categoryId: editCat || undefined,
-      direction: editDirection,
-    });
-    setActiveTx({
+    const updatedTx: Transaction = {
       ...activeTx,
       amount: parseFloat(editAmount),
       description: editDesc,
@@ -218,9 +237,25 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
       categoryId: editCat || null,
       direction: editDirection,
       category: categories.find((c) => c.id === editCat),
-    });
+    };
+
+    // In-place optimistic update
+    setActiveTx(updatedTx);
+    setTransactions((prev) => prev.map((t) => (t.id === activeTx.id ? updatedTx : t)));
     setIsEditingTx(false);
-    await loadData({ page: pagination.page });
+
+    try {
+      await api.updateTransaction(activeTx.id, {
+        amount: parseFloat(editAmount),
+        description: editDesc,
+        transactionDate: new Date(editDate).toISOString(),
+        categoryId: editCat || undefined,
+        direction: editDirection,
+      });
+    } catch (err) {
+      console.error('Update failed:', err);
+      loadData({ page: pagination.page }, true);
+    }
   };
 
   // Group transactions by date for high density feed

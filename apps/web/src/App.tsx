@@ -10,9 +10,10 @@ import { AuthPage } from './features/auth';
 import { IosInstallPrompt } from './features/pwa';
 import { api } from './shared/api/client';
 import { User } from './shared/types';
+import { useNavigationStore, NavigationTab } from './shared/stores';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const { activeTab, setActiveTab } = useNavigationStore();
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);

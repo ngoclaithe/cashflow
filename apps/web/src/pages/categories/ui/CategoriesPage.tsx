@@ -62,9 +62,9 @@ export const CategoriesPage: React.FC = () => {
   const [catType, setCatType] = useState<'EXPENSE' | 'INCOME' | 'TRANSFER'>('EXPENSE');
   const [catColor, setCatColor] = useState('#4f46e5');
 
-  const loadData = async () => {
+  const loadData = async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const [rRes, cRes] = await Promise.all([
         api.getRules().catch(() => []),
         api.getCategories().catch(() => []),
@@ -75,7 +75,7 @@ export const CategoriesPage: React.FC = () => {
         setRuleCategoryId(cRes[0].id);
       }
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -128,7 +128,7 @@ export const CategoriesPage: React.FC = () => {
       setIsCatModalOpen(false);
       setEditingCategory(null);
       setCatName('');
-      await loadData();
+      await loadData(true);
     } catch (err: any) {
       showFeedback(`Lỗi: ${err.message || 'Không thể lưu danh mục'}`, 'error');
     }
@@ -139,7 +139,7 @@ export const CategoriesPage: React.FC = () => {
     try {
       await api.deleteCategory(id);
       showFeedback(`Đã xóa danh mục "${name}"!`);
-      await loadData();
+      await loadData(true);
     } catch (err: any) {
       showFeedback(`Lỗi xóa: ${err.message || 'Không thể xóa'}`, 'error');
     }
@@ -194,7 +194,7 @@ export const CategoriesPage: React.FC = () => {
       setEditingRule(null);
       setRuleName('');
       setRuleValue('');
-      await loadData();
+      await loadData(true);
     } catch (err: any) {
       showFeedback(`Lỗi: ${err.message || 'Không thể lưu quy tắc'}`, 'error');
     }
@@ -205,7 +205,7 @@ export const CategoriesPage: React.FC = () => {
     try {
       await api.deleteRule(id);
       showFeedback(`Đã xóa quy tắc "${name}"!`);
-      await loadData();
+      await loadData(true);
     } catch (err: any) {
       showFeedback(`Lỗi: ${err.message || 'Không thể xóa quy tắc'}`, 'error');
     }
