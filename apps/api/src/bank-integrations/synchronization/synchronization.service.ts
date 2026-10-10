@@ -209,15 +209,13 @@ export class SynchronizationService {
 
     if (existing) return existing;
 
-    const isMbMain = tx.accountNumber === '1468651509999';
     return this.prisma.account.create({
       data: {
         userId,
         provider,
         accountNumber: tx.accountNumber,
-        accountHolder: isMbMain ? 'LAI THE NGOC' : undefined,
         bankName: 'MB Bank',
-        displayName: isMbMain ? 'MB Bank (1468651509999)' : `MB Bank (${tx.accountNumber.slice(-4)})`,
+        displayName: `MB Bank (${tx.accountNumber})`,
         balance: new Decimal(0),
         currency: tx.currency || 'VND',
       },

@@ -215,6 +215,10 @@ export class ApiClient {
     });
   }
 
+  async getIntegrationStatus() {
+    return this.request<any>('/integrations/status');
+  }
+
   async getSyncRuns() {
     return this.request<any[]>('/integrations/sync-runs');
   }

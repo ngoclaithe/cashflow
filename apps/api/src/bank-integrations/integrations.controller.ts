@@ -85,7 +85,7 @@ export class IntegrationsController {
    */
   @Get('status')
   @UseGuards(JwtAuthGuard)
-  async getStatus() {
+  async getStatus(@CurrentUser() user: UserPayload) {
     const gpmpayCaps = this.gpmpayProvider.getCapabilities();
     const lastSyncRun = await this.prisma.syncRun.findFirst({
       where: { provider: 'GPMPAY' },
@@ -94,7 +94,8 @@ export class IntegrationsController {
 
     const bankAccounts = await this.gpmpayProvider.getBankAccounts();
     const localAccount = await this.prisma.account.findFirst({
-      where: { accountNumber: '1468651509999' },
+      where: { userId: user.userId },
+      orderBy: { createdAt: 'asc' },
     });
 
     return {
@@ -152,19 +153,22 @@ export class IntegrationsController {
     @CurrentUser() user: UserPayload,
     @Body() body: { balance: number; accountNumber?: string },
   ) {
-    const targetAccountNum = body.accountNumber || '1468651509999';
-    let account = await this.prisma.account.findFirst({
-      where: { accountNumber: targetAccountNum, userId: user.userId },
-    });
+    let account = body.accountNumber
+      ? await this.prisma.account.findFirst({
+          where: { accountNumber: body.accountNumber, userId: user.userId },
+        })
+      : await this.prisma.account.findFirst({
+          where: { userId: user.userId },
+          orderBy: { createdAt: 'asc' },
+        });
 
     if (!account) {
       account = await this.prisma.account.create({
         data: {
           userId: user.userId,
-          displayName: 'MB Bank (1468651509999)',
+          displayName: body.accountNumber ? `MB Bank (${body.accountNumber})` : 'MB Bank',
           bankName: 'MB Bank',
-          accountNumber: targetAccountNum,
-          accountHolder: 'LAI THE NGOC',
+          accountNumber: body.accountNumber || 'MB_DEFAULT',
           provider: 'GPMPAY',
           balance: new Decimal(body.balance || 0),
           currency: 'VND',

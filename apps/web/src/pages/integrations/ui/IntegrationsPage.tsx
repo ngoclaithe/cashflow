@@ -16,6 +16,7 @@ import { api } from '../../../shared/api/client';
 export const IntegrationsPage: React.FC = () => {
   const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
   const [reconciliationStatus, setReconciliationStatus] = useState<any>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<any>(null);
   const [currentBalance, setCurrentBalance] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -27,13 +28,15 @@ export const IntegrationsPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [runsRes, reconRes, sumRes] = await Promise.all([
+      const [runsRes, reconRes, sumRes, statusRes] = await Promise.all([
         api.getSyncRuns().catch(() => []),
         api.getReconciliationStatus().catch(() => null),
         api.getDashboardSummary().catch(() => null),
+        api.getIntegrationStatus().catch(() => null),
       ]);
       setSyncRuns(runsRes);
       setReconciliationStatus(reconRes);
+      setIntegrationStatus(statusRes);
       if (sumRes) {
         setCurrentBalance(sumRes.availableCash || 0);
         if (!calibratedBalance && sumRes.availableCash > 0) {
@@ -80,7 +83,7 @@ export const IntegrationsPage: React.FC = () => {
 
     setIsCalibrating(true);
     try {
-      await api.calibrateBalance(num);
+      await api.calibrateBalance(num, accountNumber);
       await loadData();
       setCalibrateFeedback(`✓ Đã cập nhật số dư thực MB Bank: ${formatVND(num)}`);
       setTimeout(() => setCalibrateFeedback(null), 4000);
@@ -91,13 +94,19 @@ export const IntegrationsPage: React.FC = () => {
     }
   };
 
+  const providerData = integrationStatus?.providers?.[0];
+  const activeBank = providerData?.bankAccounts?.[0] || providerData?.localAccount;
+  const bankName = activeBank?.bankName || 'MB Bank (Quân đội)';
+  const accountNumber = activeBank?.accountNumber || '1468651509999';
+  const accountHolder = activeBank?.accountHolder || activeBank?.accountName || 'LAI THE NGOC';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
       <div>
         <h2 style={{ fontSize: '22px' }}>Tích hợp Ngân hàng GPM Pay & MB Bank</h2>
         <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Quản lý cổng kết nối GPM Pay API, tài khoản MB Bank 1468651509999, hiệu chỉnh số dư thực tế và đối soát tự động.
+          Quản lý cổng kết nối GPM Pay API, tài khoản MB Bank, hiệu chỉnh số dư thực tế và đối soát tự động.
         </div>
       </div>
 
@@ -143,15 +152,15 @@ export const IntegrationsPage: React.FC = () => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Ngân hàng:</span>
-              <strong style={{ color: 'var(--text-primary)' }}>MB Bank (Quân đội)</strong>
+              <strong style={{ color: 'var(--text-primary)' }}>{bankName}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Số tài khoản:</span>
-              <strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>1468651509999</strong>
+              <strong style={{ color: 'var(--primary)', fontFamily: 'var(--font-mono)' }}>{accountNumber}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Chủ tài khoản:</span>
-              <strong style={{ color: 'var(--text-primary)' }}>LAI THE NGOC</strong>
+              <strong style={{ color: 'var(--text-primary)' }}>{accountHolder}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Trạng thái kết nối:</span>
