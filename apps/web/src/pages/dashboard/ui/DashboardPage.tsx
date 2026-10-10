@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -6,7 +6,6 @@ import {
   Scale,
   AlertTriangle,
   Calendar,
-  CheckCircle2,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
@@ -15,25 +14,61 @@ import {
   ShieldCheck,
   PieChart,
 } from 'lucide-react';
-import { DashboardSummary } from '../types';
-import { formatVND, formatDate } from '../utils/format';
+import { DashboardSummary } from '../../../shared/types';
+import { formatVND, formatDate } from '../../../shared/lib/format';
+import { api } from '../../../shared/api/client';
 
-interface DashboardViewProps {
-  summary: DashboardSummary | null;
-  cashFlowHistory: Array<{ monthLabel: string; income: number; expense: number; net: number }>;
-  onViewAllTransactions: () => void;
-  onOpenAddTransaction: () => void;
-  onOpenCalendar?: () => void;
+interface DashboardPageProps {
+  onNavigate?: (tab: string) => void;
+  summary?: DashboardSummary | null;
+  cashFlowHistory?: Array<{ monthLabel: string; income: number; expense: number; net: number }>;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({
-  summary,
-  cashFlowHistory,
-  onViewAllTransactions,
-  onOpenAddTransaction,
-  onOpenCalendar,
+export const DashboardPage: React.FC<DashboardPageProps> = ({
+  onNavigate,
+  summary: propSummary,
+  cashFlowHistory: propCashFlowHistory,
 }) => {
-  if (!summary) {
+  const [summary, setSummary] = useState<DashboardSummary | null>(propSummary || null);
+  const [cashFlowHistory, setCashFlowHistory] = useState<Array<{ monthLabel: string; income: number; expense: number; net: number }>>(propCashFlowHistory || []);
+  const [loading, setLoading] = useState(!propSummary);
+
+  useEffect(() => {
+    if (propSummary) {
+      setSummary(propSummary);
+    }
+    if (propCashFlowHistory) {
+      setCashFlowHistory(propCashFlowHistory);
+    }
+  }, [propSummary, propCashFlowHistory]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      if (propSummary && propCashFlowHistory) return;
+      try {
+        const [sumRes, cfRes] = await Promise.all([
+          api.getDashboardSummary().catch(() => null),
+          api.getCashFlow(6).catch(() => []),
+        ]);
+        if (isMounted) {
+          if (sumRes) setSummary(sumRes);
+          if (cfRes) setCashFlowHistory(cfRes);
+        }
+      } catch (err) {
+        console.warn('Dashboard load failed:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (loading || !summary) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
         Đang tải dữ liệu tổng quan tài chính...
@@ -51,7 +86,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     recentTransactions,
   } = summary;
 
-  // Check if any rent obligation is due soon or insufficient funds
   const urgentObligation = upcomingObligations.find((o) => o.isObligation);
 
   return (
@@ -95,7 +129,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
           </div>
-          <button onClick={onOpenAddTransaction} className="btn btn-secondary btn-sm">
+          <button onClick={() => onNavigate && onNavigate('transactions')} className="btn btn-secondary btn-sm">
             + Thêm khoản chi / thu
           </button>
         </div>
@@ -326,9 +360,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '8px', flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: '16px' }}>Giao dịch gần nhất</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {onOpenCalendar && (
+                {onNavigate && (
                   <button
-                    onClick={onOpenCalendar}
+                    onClick={() => onNavigate('calendar')}
                     className="btn btn-primary btn-sm"
                     style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
@@ -336,7 +370,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span>Lịch chi tiêu</span>
                   </button>
                 )}
-                <button onClick={onViewAllTransactions} className="btn btn-secondary btn-sm">
+                <button
+                  onClick={() => onNavigate && onNavigate('transactions')}
+                  className="btn btn-secondary btn-sm"
+                >
                   Xem tất cả ({summary.recentTransactions.length})
                 </button>
               </div>
@@ -351,7 +388,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {recentTransactions.map((tx) => (
                   <div
                     key={tx.id}
-                    onClick={onViewAllTransactions}
+                    onClick={() => onNavigate && onNavigate('transactions')}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -483,10 +520,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         borderRadius: '4px',
                       }}
                     />
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Còn lại: {formatVND(b.remainingAmount)}</span>
-                    <span>{b.percentageUsed}%</span>
                   </div>
                 </div>
               ))}

@@ -1,47 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Layers,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
   Clock,
-  Send,
   ShieldCheck,
   Wallet,
-  Building2,
-  Sparkles,
   Save,
 } from 'lucide-react';
-import { SyncRun } from '../types';
-import { formatDate, formatVND } from '../utils/format';
+import { SyncRun } from '../../../shared/types';
+import { formatDate, formatVND } from '../../../shared/lib/format';
+import { api } from '../../../shared/api/client';
 
-interface IntegrationsViewProps {
-  syncRuns: SyncRun[];
-  reconciliationStatus: any;
-  onTriggerSync: () => void;
-  onRunReconciliation: () => void;
-  onCalibrateBalance?: (balance: number) => Promise<void>;
-  isSyncing: boolean;
-  isReconciling: boolean;
-  currentBalance?: number;
-}
+export const IntegrationsPage: React.FC = () => {
+  const [syncRuns, setSyncRuns] = useState<SyncRun[]>([]);
+  const [reconciliationStatus, setReconciliationStatus] = useState<any>(null);
+  const [currentBalance, setCurrentBalance] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
 
-export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
-  syncRuns,
-  reconciliationStatus,
-  onTriggerSync,
-  onRunReconciliation,
-  onCalibrateBalance,
-  isSyncing,
-  isReconciling,
-  currentBalance = 0,
-}) => {
   // Calibrate Balance Form State
-  const [calibratedBalance, setCalibratedBalance] = useState(
-    currentBalance > 0 ? String(currentBalance) : ''
-  );
+  const [calibratedBalance, setCalibratedBalance] = useState('');
   const [calibrateFeedback, setCalibrateFeedback] = useState<string | null>(null);
   const [isCalibrating, setIsCalibrating] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const [runsRes, reconRes, sumRes] = await Promise.all([
+        api.getSyncRuns().catch(() => []),
+        api.getReconciliationStatus().catch(() => null),
+        api.getDashboardSummary().catch(() => null),
+      ]);
+      setSyncRuns(runsRes);
+      setReconciliationStatus(reconRes);
+      if (sumRes) {
+        setCurrentBalance(sumRes.availableCash || 0);
+        if (!calibratedBalance && sumRes.availableCash > 0) {
+          setCalibratedBalance(String(sumRes.availableCash));
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading integrations:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleTriggerSync = async () => {
+    setIsSyncing(true);
+    try {
+      await api.triggerSync(1);
+      await loadData();
+    } catch (e: any) {
+      alert(`Đồng bộ thất bại: ${e.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleRunReconciliation = async () => {
+    setIsReconciling(true);
+    try {
+      await api.runReconciliation(2);
+      await loadData();
+    } catch (e: any) {
+      alert(`Đối soát thất bại: ${e.message}`);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
 
   const handleCalibrateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,9 +80,8 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
 
     setIsCalibrating(true);
     try {
-      if (onCalibrateBalance) {
-        await onCalibrateBalance(num);
-      }
+      await api.calibrateBalance(num);
+      await loadData();
       setCalibrateFeedback(`✓ Đã cập nhật số dư thực MB Bank: ${formatVND(num)}`);
       setTimeout(() => setCalibrateFeedback(null), 4000);
     } catch (err: any) {
@@ -140,7 +169,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
 
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px', display: 'flex', gap: '10px' }}>
             <button
-              onClick={onTriggerSync}
+              onClick={handleTriggerSync}
               disabled={isSyncing}
               className="btn btn-primary btn-sm"
               style={{ flex: 1, height: '38px' }}
@@ -201,12 +230,16 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
               <input
                 type="number"
                 className="form-input"
-                placeholder="Ví dụ: 15000000"
+                placeholder="Nhập số dư app MBBank (VD: 18000000)"
                 value={calibratedBalance}
                 onChange={(e) => setCalibratedBalance(e.target.value)}
                 required
-                style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}
               />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Số dư app ghi nhận hiện tại:</span>
+              <strong style={{ color: 'var(--text-primary)' }}>{formatVND(currentBalance)}</strong>
             </div>
 
             <button
@@ -215,62 +248,71 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
               className="btn btn-primary"
               style={{ height: '40px', justifyContent: 'center' }}
             >
-              <Save size={16} />
+              <Save size={15} />
               <span>{isCalibrating ? 'Đang lưu...' : 'Lưu & Khớp số dư thực tế'}</span>
             </button>
           </form>
-
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
-            Số dư khả dụng hiển thị hiện tại: <strong>{formatVND(currentBalance)}</strong>
-          </div>
         </div>
       </div>
 
-      {/* Security & Reconciliation Banner */}
-      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                background: 'rgba(99, 102, 241, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
+      {/* Daily Reconciliation Card */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ShieldCheck size={18} color="var(--primary)" />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '15px' }}>Bảo mật & Đối soát tự động (Reconciliation)</h3>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chu kỳ kiểm tra 23:30 hàng ngày</span>
-            </div>
+              Đối soát số dư cuối ngày (End-of-day Reconciliation)
+            </h3>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Kiểm tra tính khớp lệnh giữa số dư lũy kế ngân hàng và các giao dịch đã ghi sổ
+            </span>
           </div>
 
           <button
-            onClick={onRunReconciliation}
+            onClick={handleRunReconciliation}
             disabled={isReconciling}
             className="btn btn-secondary btn-sm"
           >
-            <Clock size={14} />
-            <span>{isReconciling ? 'Đang đối soát...' : 'Chạy đối soát ngay'}</span>
+            <Clock size={14} className={isReconciling ? 'spin' : ''} />
+            <span>{isReconciling ? 'Đang kiểm tra...' : 'Chạy đối soát ngay'}</span>
           </button>
         </div>
 
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-          Hệ thống tuyệt đối <strong>không lưu trữ mật khẩu, OTP hay session cookie</strong> ngân hàng. Mọi giao dịch MB Bank được nhận qua kết nối ủy quyền chuẩn GPM Pay và được đối soát định kỳ để không sót bất kỳ giao dịch nào.
-        </p>
-
-        {reconciliationStatus && (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Lần đối soát gần nhất: {formatDate(reconciliationStatus.runAt)}</span>
-            <span style={{ color: 'var(--income)', fontWeight: 600 }}>Trạng thái: {reconciliationStatus.status}</span>
+        {reconciliationStatus ? (
+          <div
+            style={{
+              background: reconciliationStatus.isDiscrepancy ? 'rgba(244, 63, 94, 0.05)' : 'rgba(16, 185, 129, 0.05)',
+              border: `1px solid ${reconciliationStatus.isDiscrepancy ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: reconciliationStatus.isDiscrepancy ? 'var(--expense)' : 'var(--income)' }}>
+              {reconciliationStatus.isDiscrepancy ? (
+                <>
+                  <AlertCircle size={18} />
+                  <span>Phát hiện chênh lệch ({formatVND(reconciliationStatus.discrepancyAmount)})</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Số dư đối soát hoàn toàn khớp chuẩn! (Không có sai lệch)</span>
+                </>
+              )}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Lần đối soát gần nhất: {formatDate(reconciliationStatus.lastCheckedAt)} • Trạng thái: {reconciliationStatus.status}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            Chưa có thông tin đối soát. Hãy bấm "Chạy đối soát ngay" để hệ thống kiểm tra đối chiếu.
           </div>
         )}
       </div>
-
 
       {/* Sync Runs History */}
       <div className="glass-card" style={{ padding: 0, overflowX: 'auto' }}>

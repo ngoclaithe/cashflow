@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Wallet,
   LayoutDashboard,
@@ -11,7 +12,7 @@ import {
   LogIn,
   Layers,
 } from 'lucide-react';
-import { User } from '../types';
+import { User } from '../../../shared/types';
 
 interface NavbarProps {
   activeTab: string;
@@ -32,7 +33,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onSync,
   isSyncing,
-  totalBalance,
 }) => {
   const navItems = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
@@ -148,56 +148,58 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Header Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={onSync}
-              disabled={isSyncing}
-              className="btn btn-secondary btn-sm"
-              title="Đồng bộ GPM Pay MB Bank"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 10px',
-                borderRadius: '8px',
-              }}
-            >
-              <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
-              <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync GPM Pay'}</span>
-            </button>
-
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div
+              <>
+                <button
+                  onClick={onSync}
+                  disabled={isSyncing}
+                  className="btn btn-secondary btn-sm"
+                  title="Đồng bộ GPM Pay MB Bank"
                   style={{
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-subtle)',
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '5px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
                   }}
                 >
+                  <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
+                  <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync GPM Pay'}</span>
+                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <div
                     style={{
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      background: '#059669',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
+                      padding: '5px 10px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
                     }}
-                  />
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user.name ? user.name.split(' ')[0] : 'Admin'}</span>
+                  >
+                    <div
+                      style={{
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#059669',
+                      }}
+                    />
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user.name ? user.name.split(' ')[0] : 'Admin'}</span>
+                  </div>
+                  <button
+                    onClick={onLogout}
+                    className="btn btn-secondary btn-sm"
+                    title="Đăng xuất"
+                    style={{ padding: '6px 8px' }}
+                  >
+                    <LogOut size={14} />
+                  </button>
                 </div>
-                <button
-                  onClick={onLogout}
-                  className="btn btn-secondary btn-sm"
-                  title="Đăng xuất"
-                  style={{ padding: '6px 8px' }}
-                >
-                  <LogOut size={14} />
-                </button>
-              </div>
+              </>
             ) : (
               <button
                 onClick={onOpenAuth}

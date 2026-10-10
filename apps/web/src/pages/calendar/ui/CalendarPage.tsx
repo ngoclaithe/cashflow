@@ -3,33 +3,25 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
-  Calendar as CalendarIcon,
   Eye,
   EyeOff,
   ArrowDownLeft,
   ArrowUpRight,
-  TrendingUp,
-  Tag,
-  Clock,
 } from 'lucide-react';
-import { Transaction } from '../types';
-import { formatCompactVND, formatVNDAmount, formatVND } from '../utils/format';
-import { api } from '../api/client';
+import { Transaction } from '../../../shared/types';
+import { formatCompactVND, formatVNDAmount, formatVND } from '../../../shared/lib/format';
+import { api } from '../../../shared/api/client';
 
-interface CalendarViewProps {
-  onBack?: () => void;
-  onHome?: () => void;
-  onViewTransactions?: () => void;
+interface CalendarPageProps {
+  onNavigate?: (tab: string) => void;
   initialTransactions?: Transaction[];
 }
 
 type CalendarTab = 'spending' | 'cashflow';
 type FilterPill = 'IN' | 'OUT' | 'ALL';
 
-export const CalendarView: React.FC<CalendarViewProps> = ({
-  onBack,
-  onHome,
-  onViewTransactions,
+export const CalendarPage: React.FC<CalendarPageProps> = ({
+  onNavigate,
   initialTransactions = [],
 }) => {
   // Current view date (year & month)
@@ -48,7 +40,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Month transactions state
   const [monthTransactions, setMonthTransactions] = useState<Transaction[]>(initialTransactions);
-  const [isLoading, setIsLoading] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); // 0-indexed
@@ -57,7 +48,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     let isMounted = true;
     const fetchMonthData = async () => {
-      setIsLoading(true);
       try {
         const startOfMonth = new Date(year, month, 1, 0, 0, 0, 0);
         const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
@@ -73,8 +63,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }
       } catch (err) {
         console.warn('Error fetching month transactions:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -241,7 +229,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }}
       >
         <button
-          onClick={onBack || onHome}
+          onClick={() => onNavigate && onNavigate('dashboard')}
           className="btn btn-ghost"
           style={{
             padding: '8px',
@@ -268,7 +256,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </h1>
 
         <button
-          onClick={onHome}
+          onClick={() => onNavigate && onNavigate('dashboard')}
           className="btn btn-ghost"
           style={{
             padding: '8px',
@@ -558,7 +546,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         {/* Xem biến động ↗ Button */}
         <button
-          onClick={onViewTransactions}
+          onClick={() => onNavigate && onNavigate('transactions')}
           style={{
             width: '100%',
             padding: '10px 14px',

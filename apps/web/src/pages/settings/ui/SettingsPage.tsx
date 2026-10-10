@@ -1,35 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Sliders,
   Plus,
   Trash2,
   Send,
-  CheckCircle,
-  Tag,
-  ArrowUpDown,
   BellRing,
 } from 'lucide-react';
-import { CategorizationRule, Category } from '../types';
+import { CategorizationRule, Category } from '../../../shared/types';
+import { api } from '../../../shared/api/client';
 
-interface SettingsViewProps {
-  rules: CategorizationRule[];
-  categories: Category[];
-  onAddRule: (data: any) => void;
-  onDeleteRule: (id: string) => void;
-  onAddCategory: (data: any) => void;
-  onDeleteCategory: (id: string) => void;
-  onTestTelegram: () => Promise<{ success: boolean; message: string }>;
-}
+export const SettingsPage: React.FC = () => {
+  const [rules, setRules] = useState<CategorizationRule[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export const SettingsView: React.FC<SettingsViewProps> = ({
-  rules,
-  categories,
-  onAddRule,
-  onDeleteRule,
-  onAddCategory,
-  onDeleteCategory,
-  onTestTelegram,
-}) => {
   // New Rule Form Modal
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -37,7 +20,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [ruleField, setRuleField] = useState<'DESCRIPTION' | 'COUNTERPARTY'>('DESCRIPTION');
   const [ruleOp, setRuleOp] = useState<'CONTAINS' | 'EQUALS' | 'STARTS_WITH'>('CONTAINS');
   const [ruleValue, setRuleValue] = useState('');
-  const [ruleCategoryId, setRuleCategoryId] = useState(categories[0]?.id || '');
+  const [ruleCategoryId, setRuleCategoryId] = useState('');
 
   // New Category Form Modal
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -49,11 +32,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
 
-  const handleCreateRule = (e: React.FormEvent) => {
+  const loadData = async () => {
+    try {
+      const [rRes, cRes] = await Promise.all([
+        api.getRules().catch(() => []),
+        api.getCategories().catch(() => []),
+      ]);
+      setRules(rRes);
+      setCategories(cRes);
+      if (!ruleCategoryId && cRes.length > 0) {
+        setRuleCategoryId(cRes[0].id);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ruleName || !ruleValue || !ruleCategoryId) return;
 
-    onAddRule({
+    await api.createRule({
       name: ruleName,
       priority: parseInt(rulePriority, 10),
       field: ruleField,
@@ -65,13 +68,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setIsRuleModalOpen(false);
     setRuleName('');
     setRuleValue('');
+    await loadData();
   };
 
-  const handleCreateCat = (e: React.FormEvent) => {
+  const handleDeleteRule = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa quy tắc này?')) return;
+    await api.deleteRule(id);
+    await loadData();
+  };
+
+  const handleCreateCat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catName) return;
 
-    onAddCategory({
+    await api.createCategory({
       name: catName,
       type: catType,
       color: catColor,
@@ -79,13 +89,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     setIsCatModalOpen(false);
     setCatName('');
+    await loadData();
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
+    await api.deleteCategory(id);
+    await loadData();
   };
 
   const handleTestTelegram = async () => {
     setIsTestingTelegram(true);
     setTelegramStatus('Đang gửi tin nhắn thử nghiệm tới Telegram...');
     try {
-      const res = await onTestTelegram();
+      const res = await api.testTelegram();
       setTelegramStatus(res.message);
     } catch (e: any) {
       setTelegramStatus(`Lỗi: ${e.message}`);
@@ -93,6 +110,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setIsTestingTelegram(false);
     }
   };
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Đang tải cài đặt...</div>;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -215,7 +236,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </td>
                     <td style={{ padding: '12px 18px', textAlign: 'center' }}>
                       <button
-                        onClick={() => onDeleteRule(rule.id)}
+                        onClick={() => handleDeleteRule(rule.id)}
                         className="btn btn-danger btn-sm"
                         style={{ padding: '6px' }}
                         title="Xóa quy tắc"
@@ -291,7 +312,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {!c.isSystem && (
                 <button
-                  onClick={() => onDeleteCategory(c.id)}
+                  onClick={() => handleDeleteCategory(c.id)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                 >
                   <Trash2 size={14} />

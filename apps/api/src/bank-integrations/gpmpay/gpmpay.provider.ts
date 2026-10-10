@@ -21,18 +21,22 @@ export class GpmpayProvider implements BankProvider {
   }
 
   private initClient() {
-    const apiToken =
-      this.config.get<string>('GPMPAY_API_TOKEN') ||
-      'gpm_APdzUcx4_r6UtXSzo19FOj1HRHoYAOha6';
+    const apiToken = this.config.get<string>('GPMPAY_API_TOKEN');
+    if (!apiToken) {
+      this.logger.warn('GPMPAY_API_TOKEN is not configured in environment variables. Bank sync is disabled.');
+      this.client = null;
+      return;
+    }
 
     try {
       this.client = new GpmPay({
         apiToken,
         baseUrl: this.config.get<string>('GPMPAY_API_URL') || 'https://api.gpmpay.com/api/v1',
       });
-      this.logger.log('GPM Pay SDK initialized successfully');
+      this.logger.log('GPM Pay SDK initialized successfully from environment config');
     } catch (err: any) {
       this.logger.error(`Failed to initialize GPM Pay SDK: ${err.message}`);
+      this.client = null;
     }
   }
 
@@ -137,7 +141,7 @@ export class GpmpayProvider implements BankProvider {
       description: item.content || item.transferContent || item.description || 'Giao dịch MB Bank',
       counterparty: item.counterName || item.counterAccount || undefined,
       code: item.referenceCode || item.code || undefined,
-      accountNumber: item.accountNumber || this.config.get<string>('GPMPAY_ACCOUNT_NUMBER') || '1468651509999',
+      accountNumber: item.accountNumber || this.config.get<string>('GPMPAY_ACCOUNT_NUMBER') || '',
       gateway: item.gateway || 'MB',
       accumulatedBalance: item.accumulated ? Number(item.accumulated) : undefined,
       rawPayload: item,
@@ -158,7 +162,7 @@ export class GpmpayProvider implements BankProvider {
         limit: perPage,
       };
 
-      const bankAccountId = this.config.get<string>('GPMPAY_BANK_ACCOUNT_ID') || '3386ff36-5e63-4e76-bf32-617aa52cebe7';
+      const bankAccountId = this.config.get<string>('GPMPAY_BANK_ACCOUNT_ID');
       if (bankAccountId) {
         params.bankAccountId = bankAccountId;
       }
@@ -184,7 +188,7 @@ export class GpmpayProvider implements BankProvider {
           accountNumber:
             txn.bankAccount?.accountNumber ||
             this.config.get<string>('GPMPAY_ACCOUNT_NUMBER') ||
-            '1468651509999',
+            '',
           gateway: txn.bankAccount?.bank?.code || 'MB',
           accumulatedBalance: txn.balanceAfter ? Number(txn.balanceAfter) : undefined,
           rawPayload: txn,
