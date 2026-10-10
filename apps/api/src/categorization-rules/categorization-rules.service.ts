@@ -96,6 +96,38 @@ export class CategorizationRulesService {
     return null;
   }
 
+  /**
+   * Evaluates active rules against all un-overridden transactions and updates category.
+   */
+  async applyRulesToExisting(userId: string) {
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        userCategoryOverride: false,
+      },
+    });
+
+    let matchedCount = 0;
+    for (const tx of transactions) {
+      const matchedCategoryId = await this.matchCategory(userId, {
+        description: tx.description,
+        counterparty: tx.counterparty,
+        amount: tx.amount.toString(),
+        provider: tx.provider,
+      });
+
+      if (matchedCategoryId && matchedCategoryId !== tx.categoryId) {
+        await this.prisma.transaction.update({
+          where: { id: tx.id },
+          data: { categoryId: matchedCategoryId },
+        });
+        matchedCount++;
+      }
+    }
+
+    return { total: transactions.length, matchedCount };
+  }
+
   isRuleMatch(
     rule: { field: RuleField; operator: RuleOperator; value: string },
     tx: EvaluatableTransaction,

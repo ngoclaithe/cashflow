@@ -24,6 +24,11 @@ export class CategorizationRulesController {
     return this.rulesService.create(user.userId, dto);
   }
 
+  @Post('apply')
+  async applyRules(@CurrentUser() user: UserPayload) {
+    return this.rulesService.applyRulesToExisting(user.userId);
+  }
+
   @Patch(':id')
   async update(
     @CurrentUser() user: UserPayload,

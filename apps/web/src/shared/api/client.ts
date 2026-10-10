@@ -235,6 +235,12 @@ export class ApiClient {
     });
   }
 
+  async applyRules() {
+    return this.request<any>('/categorization-rules/apply', {
+      method: 'POST',
+    });
+  }
+
   // Bank Integration / Sync
   async triggerSync(days = 1) {
     return this.request<any>('/integrations/sync', {

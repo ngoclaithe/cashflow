@@ -10,7 +10,7 @@ import {
   Sliders,
   LogOut,
   LogIn,
-  Layers,
+  Tags,
 } from 'lucide-react';
 import { User } from '../../../shared/types';
 
@@ -37,9 +37,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
+    { id: 'categories', label: 'Danh mục', icon: Tags },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'savings', label: 'Mục tiêu', icon: Target },
-    { id: 'integrations', label: 'SePay', icon: Layers },
     { id: 'settings', label: 'Cài đặt', icon: Sliders },
   ];
 
