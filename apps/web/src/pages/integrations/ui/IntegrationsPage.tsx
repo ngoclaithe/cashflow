@@ -104,15 +104,15 @@ export const IntegrationsPage: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
       <div>
-        <h2 style={{ fontSize: '22px' }}>Tích hợp Ngân hàng GPM Pay & MB Bank</h2>
+        <h2 style={{ fontSize: '22px' }}>Tích hợp Ngân hàng SePay & MB Bank</h2>
         <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Quản lý cổng kết nối GPM Pay API, tài khoản MB Bank, hiệu chỉnh số dư thực tế và đối soát tự động.
+          Quản lý cổng kết nối SePay Open API, tài khoản MB Bank, hiệu chỉnh số dư thực tế và đối soát tự động.
         </div>
       </div>
 
       {/* Provider Status & Balance Calibration Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
-        {/* GPM Pay Card */}
+        {/* SePay Card */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -121,7 +121,7 @@ export const IntegrationsPage: React.FC = () => {
                   width: '38px',
                   height: '38px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #4f46e5, #059669)',
+                  background: 'linear-gradient(135deg, #0284c7, #059669)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -130,8 +130,8 @@ export const IntegrationsPage: React.FC = () => {
                 <Layers size={20} color="#fff" />
               </div>
               <div>
-                <h3 style={{ fontSize: '16px' }}>GPM Pay Bank Gateway</h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Official SDK & Webhook</span>
+                <h3 style={{ fontSize: '16px' }}>SePay Bank Gateway</h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Official Open API & Webhook</span>
               </div>
             </div>
             <span className="badge badge-income">
@@ -164,14 +164,14 @@ export const IntegrationsPage: React.FC = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: 'var(--text-muted)' }}>Trạng thái kết nối:</span>
-              <span style={{ color: 'var(--income)', fontWeight: 600 }}>API_OFFICIAL • ACTIVE</span>
+              <span style={{ color: 'var(--income)', fontWeight: 600 }}>API_CONNECTED • ACTIVE</span>
             </div>
           </div>
 
           <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             <ul style={{ paddingLeft: '18px', margin: 0 }}>
-              <li>Tự động nhận biến động số dư tức thời qua Webhook GPM Pay</li>
-              <li>Định danh chuẩn qua GPM Pay SDK & MBBank API Official</li>
+              <li>Tự động nhận biến động số dư tức thời qua Webhook SePay</li>
+              <li>Đồng bộ lịch sử giao dịch tiền vào & tiền ra qua SePay API</li>
               <li>Chống trùng lặp tuyệt đối qua ID giao dịch ngân hàng</li>
             </ul>
           </div>
@@ -184,7 +184,7 @@ export const IntegrationsPage: React.FC = () => {
               style={{ flex: 1, height: '38px' }}
             >
               <RefreshCw size={14} className={isSyncing ? 'spin' : ''} />
-              <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ API GPM Pay'}</span>
+              <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ API SePay'}</span>
             </button>
           </div>
         </div>

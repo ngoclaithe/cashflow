@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'savings', label: 'Mục tiêu', icon: Target },
-    { id: 'integrations', label: 'GPM Pay', icon: Layers },
+    { id: 'integrations', label: 'SePay', icon: Layers },
     { id: 'settings', label: 'Cài đặt', icon: Sliders },
   ];
 
@@ -154,7 +154,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={onSync}
                   disabled={isSyncing}
                   className="btn btn-secondary btn-sm"
-                  title="Đồng bộ GPM Pay MB Bank"
+                  title="Đồng bộ SePay MB Bank"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -164,7 +164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }}
                 >
                   <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
-                  <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync GPM Pay'}</span>
+                  <span className="sync-btn-text">{isSyncing ? 'Đang sync...' : 'Sync SePay'}</span>
                 </button>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

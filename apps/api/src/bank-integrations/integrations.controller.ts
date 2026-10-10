@@ -12,6 +12,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { SepayProvider } from './sepay/sepay.provider';
 import { GpmpayProvider } from './gpmpay/gpmpay.provider';
 import { SynchronizationService } from './synchronization/synchronization.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,14 +23,53 @@ import Decimal from 'decimal.js';
 @Controller('integrations')
 export class IntegrationsController {
   constructor(
+    private readonly sepayProvider: SepayProvider,
     private readonly gpmpayProvider: GpmpayProvider,
     private readonly syncService: SynchronizationService,
     private readonly prisma: PrismaService,
   ) {}
 
   /**
-   * Public Webhook endpoint for GPM Pay.
+   * Public Webhook endpoint for SePay.
    * Handles real-time transaction notifications for MB Bank.
+   */
+  @Post('sepay/webhook')
+  @HttpCode(HttpStatus.OK)
+  async handleSepayWebhook(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() payload: any,
+  ) {
+    const isValid = await this.sepayProvider.verifyWebhook(headers, payload);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid SePay webhook authentication');
+    }
+
+    const normalized = await this.sepayProvider.parseWebhook(payload);
+    if (normalized.length === 0) {
+      return { success: true, message: 'No actionable transactions in webhook payload' };
+    }
+
+    let targetUserId: string | null = null;
+    const matchingAccount = await this.prisma.account.findFirst({
+      where: { accountNumber: normalized[0].accountNumber },
+    });
+
+    if (matchingAccount) {
+      targetUserId = matchingAccount.userId;
+    } else {
+      const defaultUser = await this.prisma.user.findFirst();
+      if (defaultUser) targetUserId = defaultUser.id;
+    }
+
+    if (targetUserId) {
+      await this.syncService.ingestTransactions(targetUserId, 'SEPAY', normalized);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Public Webhook endpoint for GPM Pay.
    */
   @Post('gpmpay/webhook')
   @HttpCode(HttpStatus.OK)
@@ -49,7 +89,6 @@ export class IntegrationsController {
       return { success: true, message: 'No actionable transactions in webhook payload' };
     }
 
-    // Default to matching account user or system user
     let targetUserId: string | null = null;
     const matchingAccount = await this.prisma.account.findFirst({
       where: { accountNumber: normalized[0].accountNumber },
@@ -77,7 +116,7 @@ export class IntegrationsController {
     @Body() payload: any,
     @Req() req: any,
   ) {
-    return this.handleGpmpayWebhook(headers, payload, req);
+    return this.handleSepayWebhook(headers, payload);
   }
 
   /**
@@ -86,13 +125,12 @@ export class IntegrationsController {
   @Get('status')
   @UseGuards(JwtAuthGuard)
   async getStatus(@CurrentUser() user: UserPayload) {
-    const gpmpayCaps = this.gpmpayProvider.getCapabilities();
+    const sepayCaps = this.sepayProvider.getCapabilities();
     const lastSyncRun = await this.prisma.syncRun.findFirst({
-      where: { provider: 'GPMPAY' },
+      where: { provider: 'SEPAY' },
       orderBy: { createdAt: 'desc' },
     });
 
-    const bankAccounts = await this.gpmpayProvider.getBankAccounts();
     const localAccount = await this.prisma.account.findFirst({
       where: { userId: user.userId },
       orderBy: { createdAt: 'asc' },
@@ -101,11 +139,10 @@ export class IntegrationsController {
     return {
       providers: [
         {
-          name: 'GPM Pay',
-          providerKey: 'GPMPAY',
-          capabilities: gpmpayCaps,
+          name: 'SePay',
+          providerKey: 'SEPAY',
+          capabilities: sepayCaps,
           lastSync: lastSyncRun,
-          bankAccounts,
           localAccount,
           status: 'CONNECTED',
         },
@@ -114,7 +151,7 @@ export class IntegrationsController {
   }
 
   /**
-   * Trigger on-demand sync from GPM Pay API
+   * Trigger on-demand sync from SePay API
    */
   @Post('sync')
   @UseGuards(JwtAuthGuard)
@@ -123,18 +160,18 @@ export class IntegrationsController {
     @Body() body?: { provider?: string; days?: number },
     @Query('days') queryDays?: string,
   ) {
-    const days = body?.days || (queryDays ? parseInt(queryDays, 10) : 30);
+    const days = body?.days || (queryDays ? parseInt(queryDays, 10) : 365);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const page = await this.gpmpayProvider.fetchTransactions({
+    const page = await this.sepayProvider.fetchTransactions({
       startDate,
-      perPage: 50,
+      perPage: 5000,
     });
 
     const result = await this.syncService.ingestTransactions(
       user.userId,
-      'GPMPAY',
+      'SEPAY',
       page.transactions,
     );
 
