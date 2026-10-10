@@ -23,6 +23,7 @@ interface DashboardViewProps {
   cashFlowHistory: Array<{ monthLabel: string; income: number; expense: number; net: number }>;
   onViewAllTransactions: () => void;
   onOpenAddTransaction: () => void;
+  onOpenCalendar?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -30,6 +31,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   cashFlowHistory,
   onViewAllTransactions,
   onOpenAddTransaction,
+  onOpenCalendar,
 }) => {
   if (!summary) {
     return (
@@ -321,11 +323,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Recent Transactions */}
           <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '8px', flexWrap: 'wrap' }}>
               <h3 style={{ fontSize: '16px' }}>Giao dịch gần nhất</h3>
-              <button onClick={onViewAllTransactions} className="btn btn-secondary btn-sm">
-                Xem tất cả ({summary.recentTransactions.length})
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {onOpenCalendar && (
+                  <button
+                    onClick={onOpenCalendar}
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    <Calendar size={13} />
+                    <span>Lịch chi tiêu</span>
+                  </button>
+                )}
+                <button onClick={onViewAllTransactions} className="btn btn-secondary btn-sm">
+                  Xem tất cả ({summary.recentTransactions.length})
+                </button>
+              </div>
             </div>
 
             {recentTransactions.length === 0 ? (

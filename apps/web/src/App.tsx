@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
+import { CalendarView } from './components/CalendarView';
 import { TransactionsView } from './components/TransactionsView';
 import { BudgetsView } from './components/BudgetsView';
 import { SavingsView } from './components/SavingsView';
@@ -281,6 +282,16 @@ export const App: React.FC = () => {
             cashFlowHistory={cashFlowHistory}
             onViewAllTransactions={() => setActiveTab('transactions')}
             onOpenAddTransaction={() => setActiveTab('transactions')}
+            onOpenCalendar={() => setActiveTab('calendar')}
+          />
+        )}
+
+        {activeTab === 'calendar' && (
+          <CalendarView
+            onBack={() => setActiveTab('dashboard')}
+            onHome={() => setActiveTab('dashboard')}
+            onViewTransactions={() => setActiveTab('transactions')}
+            initialTransactions={transactions}
           />
         )}
 
@@ -296,6 +307,7 @@ export const App: React.FC = () => {
             onDeleteTransaction={handleDeleteTransaction}
             onAddTransaction={handleAddTransaction}
             onAddRule={handleAddRule}
+            onOpenCalendar={() => setActiveTab('calendar')}
           />
         )}
 
@@ -322,16 +334,8 @@ export const App: React.FC = () => {
             reconciliationStatus={reconciliationStatus}
             onTriggerSync={handleTriggerSync}
             onRunReconciliation={handleRunReconciliation}
-            onSendMockWebhook={async (d) => {
-              await api.sendMockWebhook(d);
-              await loadAllData();
-            }}
             onCalibrateBalance={async (bal) => {
               await api.calibrateBalance(bal);
-              await loadAllData();
-            }}
-            onSimulateTransaction={async (d) => {
-              await api.simulateGpmTransaction(d);
               await loadAllData();
             }}
             currentBalance={summary?.availableCash || 0}

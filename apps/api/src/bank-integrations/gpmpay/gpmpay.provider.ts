@@ -214,26 +214,4 @@ export class GpmpayProvider implements BankProvider {
     }
   }
 
-  async simulateTransaction(params: {
-    amount: number;
-    transferContent: string;
-    type?: 'IN' | 'OUT';
-  }) {
-    if (!this.client) this.initClient();
-    if (!this.client) throw new Error('GPM Pay SDK not initialized');
-
-    const bankAccountId =
-      this.config.get<string>('GPMPAY_BANK_ACCOUNT_ID') ||
-      '3386ff36-5e63-4e76-bf32-617aa52cebe7';
-
-    return this.client.simulator.createTransaction(
-      {
-        bankAccountId,
-        amount: Math.round(params.amount),
-        transferContent: params.transferContent,
-        type: params.type || 'IN',
-      },
-      { allowOnProduction: true },
-    );
-  }
 }

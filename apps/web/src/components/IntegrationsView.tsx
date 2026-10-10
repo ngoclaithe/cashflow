@@ -20,9 +20,7 @@ interface IntegrationsViewProps {
   reconciliationStatus: any;
   onTriggerSync: () => void;
   onRunReconciliation: () => void;
-  onSendMockWebhook: (data: any) => Promise<void>;
   onCalibrateBalance?: (balance: number) => Promise<void>;
-  onSimulateTransaction?: (data: any) => Promise<void>;
   isSyncing: boolean;
   isReconciling: boolean;
   currentBalance?: number;
@@ -33,9 +31,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   reconciliationStatus,
   onTriggerSync,
   onRunReconciliation,
-  onSendMockWebhook,
   onCalibrateBalance,
-  onSimulateTransaction,
   isSyncing,
   isReconciling,
   currentBalance = 0,
@@ -46,13 +42,6 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   );
   const [calibrateFeedback, setCalibrateFeedback] = useState<string | null>(null);
   const [isCalibrating, setIsCalibrating] = useState(false);
-
-  // Simulator / Test Webhook Form
-  const [simAmount, setSimAmount] = useState('200000');
-  const [simType, setSimType] = useState<'in' | 'out'>('in');
-  const [simContent, setSimContent] = useState('GIAO DICH THU NGHIEM GPM PAY');
-  const [simFeedback, setSimFeedback] = useState<string | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
 
   const handleCalibrateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,35 +59,6 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
       setCalibrateFeedback(`Lỗi: ${err.message}`);
     } finally {
       setIsCalibrating(false);
-    }
-  };
-
-  const handleSimulateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!simAmount || !simContent) return;
-
-    setIsSimulating(true);
-    try {
-      if (onSimulateTransaction) {
-        await onSimulateTransaction({
-          amount: parseFloat(simAmount),
-          transferContent: simContent,
-          type: simType === 'in' ? 'IN' : 'OUT',
-        });
-      } else {
-        await onSendMockWebhook({
-          transferAmount: parseFloat(simAmount),
-          transferType: simType,
-          content: simContent,
-          gateway: 'MB',
-        });
-      }
-      setSimFeedback('✓ Đã bắn giao dịch giả lập GPM Pay thành công! Dữ liệu đã được ghi sổ.');
-      setTimeout(() => setSimFeedback(null), 4000);
-    } catch (err: any) {
-      setSimFeedback(`Lỗi: ${err.message}`);
-    } finally {
-      setIsSimulating(false);
     }
   };
 
@@ -311,78 +271,6 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
         )}
       </div>
 
-      {/* Simulator: Test GPM Pay Webhook */}
-      <div className="glass-card">
-        <h3 style={{ fontSize: '16px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Send size={16} color="var(--warning)" />
-          Bộ thử nghiệm GPM Pay Webhook & Giả lập (Simulator)
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Tạo giao dịch giả lập qua GPM Pay SDK để kiểm tra tính năng tự động ghi sổ và phân loại danh mục thông minh.
-        </p>
-
-        {simFeedback && (
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-sm)',
-              background: simFeedback.startsWith('✓') ? 'var(--income-bg)' : 'var(--expense-bg)',
-              color: simFeedback.startsWith('✓') ? 'var(--income)' : 'var(--expense)',
-              fontSize: '13px',
-              fontWeight: 600,
-              marginBottom: '14px',
-            }}
-          >
-            {simFeedback}
-          </div>
-        )}
-
-        <form onSubmit={handleSimulateSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Loại giao dịch</label>
-            <select
-              className="form-select"
-              value={simType}
-              onChange={(e) => setSimType(e.target.value as any)}
-            >
-              <option value="in">Tiền vào (Thu nhập)</option>
-              <option value="out">Tiền ra (Chi tiêu)</option>
-            </select>
-          </div>
-
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Số tiền (VND)</label>
-            <input
-              type="number"
-              className="form-input"
-              value={simAmount}
-              onChange={(e) => setSimAmount(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="form-group" style={{ margin: 0, gridColumn: 'span 2' }}>
-            <label className="form-label">Nội dung chuyển khoản (Ví dụ: TIEN NHA, LUONG THANG 10, GYM)</label>
-            <input
-              type="text"
-              className="form-input"
-              value={simContent}
-              onChange={(e) => setSimContent(e.target.value)}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSimulating}
-            className="btn btn-primary"
-            style={{ height: '42px', justifyContent: 'center' }}
-          >
-            <Send size={15} />
-            <span>{isSimulating ? 'Đang gửi...' : 'Gửi giao dịch thử'}</span>
-          </button>
-        </form>
-      </div>
 
       {/* Sync Runs History */}
       <div className="glass-card" style={{ padding: 0, overflowX: 'auto' }}>

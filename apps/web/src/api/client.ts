@@ -202,13 +202,6 @@ class ApiClient {
     return this.request<any[]>('/integrations/sync-runs');
   }
 
-  async sendMockWebhook(data: any) {
-    return this.request<any>('/integrations/mock-webhook', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
   async getReconciliationStatus() {
     return this.request<any>('/reconciliation/status');
   }
@@ -230,13 +223,6 @@ class ApiClient {
     return this.request<any>('/integrations/calibrate-balance', {
       method: 'POST',
       body: JSON.stringify({ balance, accountNumber }),
-    });
-  }
-
-  async simulateGpmTransaction(data: { amount: number; transferContent: string; type?: 'IN' | 'OUT' }) {
-    return this.request<any>('/integrations/simulate', {
-      method: 'POST',
-      body: JSON.stringify(data),
     });
   }
 }

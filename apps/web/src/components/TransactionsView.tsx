@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Copy,
   Sparkles,
+  Calendar,
 } from 'lucide-react';
 import { Transaction, Category, Account, TransactionDirection } from '../types';
 import { formatVND, formatDate } from '../utils/format';
@@ -30,6 +31,7 @@ interface TransactionsViewProps {
   onDeleteTransaction: (txId: string) => void;
   onAddTransaction: (data: any) => void;
   onAddRule?: (data: any) => void;
+  onOpenCalendar?: () => void;
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
@@ -43,6 +45,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onDeleteTransaction,
   onAddTransaction,
   onAddRule,
+  onOpenCalendar,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedDirection, setSelectedDirection] = useState<string>('');
@@ -219,14 +222,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="btn btn-primary"
-          style={{ padding: '8px 14px', fontSize: '13px' }}
-        >
-          <Plus size={16} />
-          <span>Thêm GD</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {onOpenCalendar && (
+            <button
+              onClick={onOpenCalendar}
+              className="btn btn-secondary"
+              style={{ padding: '8px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}
+            >
+              <Calendar size={15} />
+              <span>Dạng lịch</span>
+            </button>
+          )}
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="btn btn-primary"
+            style={{ padding: '8px 14px', fontSize: '13px' }}
+          >
+            <Plus size={16} />
+            <span>Thêm GD</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Section */}
