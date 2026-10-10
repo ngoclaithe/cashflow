@@ -12,6 +12,9 @@ export interface UpcomingObligation {
   isObligation: boolean;
   isDueSoon: boolean; // due within 7 days
   isInsufficientFunds: boolean;
+  isFulfilledThisMonth?: boolean;
+  fulfilledDate?: Date;
+  fulfilledAmount?: number;
 }
 
 @Injectable()
@@ -86,14 +89,51 @@ export class RecurringTransactionsService {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
+    const startOfMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    // Fetch this month's transactions to evaluate fulfillment
+    const monthTxs = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        transactionDate: { gte: startOfMonth, lte: endOfMonth },
+      },
+      include: {
+        category: true,
+      },
+    });
+
     const obligations: UpcomingObligation[] = [];
 
     for (const item of active) {
       let targetYear = currentYear;
       let targetMonth = currentMonth;
 
-      if (item.dayOfMonth < currentDay) {
-        // Due next month
+      // Find if an actual transaction fulfilled this recurring item this month
+      const matchingTx = monthTxs.find((tx) => {
+        if (tx.direction !== item.direction) return false;
+        // 1. Direct category ID match
+        if (item.categoryId && tx.categoryId === item.categoryId) return true;
+        // 2. Name / Description keywords match
+        const catName = (tx.category?.name || '').toLowerCase();
+        const txDesc = (tx.description || '').toLowerCase();
+        const itemName = item.name.toLowerCase();
+
+        if (itemName.includes('lương') && (catName.includes('lương') || txDesc.includes('luong') || txDesc.includes('salary'))) {
+          return true;
+        }
+        if (itemName.includes('nhà') && (catName.includes('nhà') || txDesc.includes('tien nha') || txDesc.includes('thue nha'))) {
+          return true;
+        }
+        return false;
+      });
+
+      const isFulfilledThisMonth = !!matchingTx;
+      const fulfilledDate = matchingTx?.transactionDate;
+      const fulfilledAmount = matchingTx ? new Decimal(matchingTx.amount.toString()).toNumber() : undefined;
+
+      // If already fulfilled this month OR past the day of month, next due date is next month
+      if (isFulfilledThisMonth || item.dayOfMonth < currentDay) {
         targetMonth += 1;
         if (targetMonth > 11) {
           targetMonth = 0;
@@ -106,7 +146,7 @@ export class RecurringTransactionsService {
       const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
       const amountNum = new Decimal(item.amount.toString()).toNumber();
-      const isInsufficient = item.isObligation && currentCashBalance < amountNum;
+      const isInsufficient = item.isObligation && !isFulfilledThisMonth && currentCashBalance < amountNum;
 
       obligations.push({
         id: item.id,
@@ -115,11 +155,19 @@ export class RecurringTransactionsService {
         dueDate,
         daysRemaining,
         isObligation: item.isObligation,
-        isDueSoon: daysRemaining <= 7,
+        isDueSoon: !isFulfilledThisMonth && daysRemaining <= 7,
         isInsufficientFunds: isInsufficient,
+        isFulfilledThisMonth,
+        fulfilledDate,
+        fulfilledAmount,
       });
     }
 
-    return obligations.sort((a, b) => a.daysRemaining - b.daysRemaining);
+    return obligations.sort((a, b) => {
+      // Unfulfilled items first, then fulfilled items
+      if (a.isFulfilledThisMonth && !b.isFulfilledThisMonth) return 1;
+      if (!a.isFulfilledThisMonth && b.isFulfilledThisMonth) return -1;
+      return a.daysRemaining - b.daysRemaining;
+    });
   }
 }

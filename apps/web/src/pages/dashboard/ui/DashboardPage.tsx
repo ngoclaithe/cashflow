@@ -13,6 +13,7 @@ import {
   Sparkles,
   ShieldCheck,
   PieChart,
+  CheckCircle2,
 } from 'lucide-react';
 import { DashboardSummary } from '../../../shared/types';
 import { formatVND, formatDate } from '../../../shared/lib/format';
@@ -533,41 +534,77 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Khoản cố định & Nghĩa vụ sắp tới
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {upcomingObligations.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    background: item.isObligation
-                      ? 'rgba(244, 63, 94, 0.05)'
-                      : 'rgba(16, 185, 129, 0.05)',
-                    border: `1px solid ${
-                      item.isObligation ? 'rgba(244, 63, 94, 0.15)' : 'rgba(16, 185, 129, 0.15)'
-                    }`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Hạn: còn {item.daysRemaining} ngày ({item.isObligation ? 'Nghĩa vụ bắt buộc' : 'Dự kiến'})
-                    </div>
-                  </div>
+              {upcomingObligations.map((item) => {
+                const isFulfilled = item.isFulfilledThisMonth;
+                const bg = isFulfilled
+                  ? '#ecfdf5'
+                  : item.isObligation
+                  ? 'rgba(244, 63, 94, 0.05)'
+                  : 'rgba(16, 185, 129, 0.05)';
+                const border = isFulfilled
+                  ? '1px solid #a7f3d0'
+                  : `1px solid ${item.isObligation ? 'rgba(244, 63, 94, 0.15)' : 'rgba(16, 185, 129, 0.15)'}`;
+                const textColor = isFulfilled
+                  ? '#065f46'
+                  : item.isObligation
+                  ? 'var(--expense)'
+                  : 'var(--income)';
+
+                return (
                   <div
+                    key={item.id}
                     style={{
-                      fontWeight: 700,
-                      fontSize: '14px',
-                      color: item.isObligation ? 'var(--expense)' : 'var(--income)',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: bg,
+                      border: border,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
                     }}
                   >
-                    {item.isObligation ? '-' : '+'}
-                    {formatVND(item.amount)}
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {item.name}
+                        {isFulfilled && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#059669',
+                              background: '#d1fae5',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            <CheckCircle2 size={11} /> Đã ghi nhận
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: isFulfilled ? '#047857' : 'var(--text-muted)', marginTop: '2px' }}>
+                        {isFulfilled
+                          ? `Đã ${item.isObligation ? 'thanh toán' : 'nhận'} ${item.fulfilledDate ? formatDate(item.fulfilledDate) : 'tháng này'} • Kỳ tới: còn ${item.daysRemaining} ngày`
+                          : `Hạn: còn ${item.daysRemaining} ngày (${item.isObligation ? 'Nghĩa vụ bắt buộc' : 'Dự kiến'})`}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        color: textColor,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.isObligation ? '-' : '+'}
+                      {formatVND(item.fulfilledAmount || item.amount)}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -70,6 +70,9 @@ export interface UpcomingObligation {
   isObligation: boolean;
   isDueSoon: boolean;
   isInsufficientFunds: boolean;
+  isFulfilledThisMonth?: boolean;
+  fulfilledDate?: string;
+  fulfilledAmount?: number;
 }
 
 export interface SavingsGoal {
