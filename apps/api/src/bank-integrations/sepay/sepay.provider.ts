@@ -38,6 +38,7 @@ export class SepayProvider implements BankProvider {
   ): Promise<boolean> {
     const configuredToken =
       this.config.get<string>('SEPAY_WEBHOOK_TOKEN') ||
+      this.config.get<string>('SEPAY_WEBHOOK_API_KEY') ||
       this.config.get<string>('SEPAY_API_KEY');
 
     // If no token is configured in local development, allow for testing
