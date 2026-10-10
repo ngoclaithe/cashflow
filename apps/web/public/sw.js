@@ -1,9 +1,11 @@
-const CACHE_NAME = 'cashflow-v1';
+const CACHE_NAME = 'cashflow-v2-light';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.png',
+  '/apple-touch-icon.png',
+  '/icon-192.png'
 ];
 
 self.addEventListener('install', (event) => {

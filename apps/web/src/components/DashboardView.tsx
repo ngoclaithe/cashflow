@@ -85,7 +85,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Hạn thanh toán: còn {urgentObligation.daysRemaining} ngày. Số dư khả dụng hiện tại:{' '}
-                <strong style={{ color: '#fff' }}>{formatVND(availableCash)}</strong> (
+                <strong style={{ color: 'var(--text-primary)' }}>{formatVND(availableCash)}</strong> (
                 {urgentObligation.isInsufficientFunds
                   ? 'Cảnh báo: Chưa đủ số dư thanh toán!'
                   : 'Đã sẵn sàng dự phòng chi trả an toàn'}
@@ -123,7 +123,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Wallet size={16} color="var(--primary)" />
             </div>
           </div>
-          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: '#fff' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: 'var(--text-primary)' }}>
             {formatVND(availableCash)}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -381,7 +381,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           style={{
                             fontWeight: 600,
                             fontSize: '13px',
-                            color: '#fff',
+                            color: 'var(--text-primary)',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -525,7 +525,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Personal Savings Target (60M target) */}
-          <div className="glass-card" style={{ background: 'linear-gradient(145deg, rgba(17,24,39,0.8), rgba(99,102,241,0.06))' }}>
+          <div className="glass-card" style={{ background: 'linear-gradient(145deg, #ffffff, #f5f3ff)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={18} color="#facc15" />
@@ -538,7 +538,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{g.name}</div>
-                  <div style={{ fontSize: '26px', fontWeight: 800, color: '#fff', marginTop: '4px' }}>
+                  <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
                     {formatVND(g.currentAmount)}{' '}
                     <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 500 }}>
                       / {formatVND(g.targetAmount)}
@@ -546,7 +546,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
 
-                <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ height: '8px', background: 'var(--bg-input)', borderRadius: '6px', overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${Math.min(g.percentageAchieved, 100)}%`,
@@ -562,7 +562,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
                     gap: '10px',
-                    background: 'rgba(255, 255, 255, 0.03)',
+                    background: 'var(--bg-input)',
                     padding: '10px 12px',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: '12px',
@@ -570,13 +570,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Cần tích lũy thêm:</span>
-                    <div style={{ fontWeight: 700, color: '#fff', marginTop: '2px' }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
                       {formatVND(g.remainingAmount)}
                     </div>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Mỗi tháng cần dành:</span>
-                    <div style={{ fontWeight: 700, color: '#facc15', marginTop: '2px' }}>
+                    <div style={{ fontWeight: 700, color: '#eab308', marginTop: '2px' }}>
                       ~{formatVND(g.monthlyRequiredSavings)}/tháng
                     </div>
                   </div>

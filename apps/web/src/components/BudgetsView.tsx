@@ -72,7 +72,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
       >
         <div>
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>TỔNG HẠN MỨC NGÂN SÁCH</span>
-          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '4px', color: '#fff' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '4px', color: 'var(--text-primary)' }}>
             {formatVND(totalLimit)}
           </div>
         </div>
@@ -90,7 +90,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </div>
         <div>
           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>TỶ LỆ ĐÃ DÙNG</span>
-          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '4px', color: '#facc15' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '4px', color: '#eab308' }}>
             {overallPercentage}%
           </div>
         </div>
@@ -151,9 +151,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Tiến độ chi tiêu</span>
-                  <span style={{ fontWeight: 700, color: '#fff' }}>{b.percentageUsed}%</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{b.percentageUsed}%</span>
                 </div>
-                <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ height: '8px', background: 'var(--bg-input)', borderRadius: '6px', overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${Math.min(b.percentageUsed, 100)}%`,
@@ -172,7 +172,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '12px',
-                  background: 'rgba(255, 255, 255, 0.02)',
+                  background: 'var(--bg-input)',
                   padding: '12px',
                   borderRadius: 'var(--radius-md)',
                   fontSize: '13px',
@@ -186,7 +186,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 </div>
                 <div>
                   <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>HẠN MỨC TỐI ĐA</span>
-                  <div style={{ fontWeight: 700, color: '#fff', marginTop: '2px' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
                     {formatVND(b.limitAmount)}
                   </div>
                 </div>

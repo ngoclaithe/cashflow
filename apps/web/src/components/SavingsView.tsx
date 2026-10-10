@@ -61,7 +61,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             key={g.id}
             className="glass-card"
             style={{
-              background: 'linear-gradient(145deg, rgba(17,24,39,0.85), rgba(99,102,241,0.08))',
+              background: 'linear-gradient(145deg, #ffffff, #f5f3ff)',
               display: 'flex',
               flexDirection: 'column',
               gap: '18px',
@@ -81,7 +81,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                       justifyContent: 'center',
                     }}
                   >
-                    <Target size={18} color="#facc15" />
+                    <Target size={18} color="#eab308" />
                   </div>
                   <h3 style={{ fontSize: '17px' }}>{g.name}</h3>
                 </div>
@@ -103,7 +103,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             {/* Target Display */}
             <div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Tiến độ hiện tại</div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff', marginTop: '2px' }}>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
                 {formatVND(g.currentAmount)}{' '}
                 <span style={{ fontSize: '15px', color: 'var(--text-muted)', fontWeight: 500 }}>
                   / {formatVND(g.targetAmount)}
@@ -117,7 +117,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 <span style={{ color: 'var(--text-secondary)' }}>Hoàn thành:</span>
                 <span style={{ fontWeight: 700, color: '#10b981' }}>{g.percentageAchieved}%</span>
               </div>
-              <div style={{ height: '10px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '6px', overflow: 'hidden' }}>
+              <div style={{ height: '10px', background: 'var(--bg-input)', borderRadius: '6px', overflow: 'hidden' }}>
                 <div
                   style={{
                     width: `${Math.min(g.percentageAchieved, 100)}%`,
@@ -136,7 +136,7 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: '12px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'var(--bg-input)',
                 padding: '14px',
                 borderRadius: 'var(--radius-md)',
                 fontSize: '13px',
@@ -144,13 +144,13 @@ export const SavingsView: React.FC<SavingsViewProps> = ({
             >
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>CẦN TÍCH LŨY THÊM</span>
-                <div style={{ fontWeight: 700, color: '#fff', marginTop: '3px' }}>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '3px' }}>
                   {formatVND(g.remainingAmount)}
                 </div>
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>MỤC TIÊU TIẾT KIỆM / THÁNG</span>
-                <div style={{ fontWeight: 700, color: '#facc15', marginTop: '3px' }}>
+                <div style={{ fontWeight: 700, color: '#eab308', marginTop: '3px' }}>
                   ~{formatVND(g.monthlyRequiredSavings)}/tháng
                 </div>
               </div>

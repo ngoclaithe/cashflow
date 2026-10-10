@@ -7,6 +7,7 @@ import { SavingsView } from './components/SavingsView';
 import { IntegrationsView } from './components/IntegrationsView';
 import { SettingsView } from './components/SettingsView';
 import { AuthModal } from './components/AuthModal';
+import { IosInstallPrompt } from './components/IosInstallPrompt';
 import { api } from './api/client';
 import {
   User,
@@ -351,6 +352,8 @@ export const App: React.FC = () => {
           loadAllData();
         }}
       />
+
+      <IosInstallPrompt />
     </div>
   );
 };

@@ -211,7 +211,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         }}
       >
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
             Sổ giao dịch
           </h2>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -308,9 +308,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               fontSize: '12px',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              border: 'none',
+              border: !selectedDirection && !onlyUncategorized ? 'none' : '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              background: !selectedDirection && !onlyUncategorized ? 'var(--primary)' : 'rgba(255, 255, 255, 0.06)',
+              background: !selectedDirection && !onlyUncategorized ? 'var(--primary)' : 'var(--bg-input)',
               color: !selectedDirection && !onlyUncategorized ? '#fff' : 'var(--text-secondary)',
               transition: 'all 0.15s ease',
             }}
@@ -327,9 +327,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               fontSize: '12px',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              border: 'none',
+              border: selectedDirection === 'EXPENSE' ? 'none' : '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              background: selectedDirection === 'EXPENSE' ? 'var(--expense)' : 'rgba(255, 255, 255, 0.06)',
+              background: selectedDirection === 'EXPENSE' ? 'var(--expense)' : 'var(--bg-input)',
               color: selectedDirection === 'EXPENSE' ? '#fff' : 'var(--text-secondary)',
               transition: 'all 0.15s ease',
             }}
@@ -346,9 +346,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               fontSize: '12px',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              border: 'none',
+              border: selectedDirection === 'INCOME' ? 'none' : '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              background: selectedDirection === 'INCOME' ? 'var(--income)' : 'rgba(255, 255, 255, 0.06)',
+              background: selectedDirection === 'INCOME' ? 'var(--income)' : 'var(--bg-input)',
               color: selectedDirection === 'INCOME' ? '#fff' : 'var(--text-secondary)',
               transition: 'all 0.15s ease',
             }}
@@ -365,9 +365,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               fontSize: '12px',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              border: 'none',
+              border: selectedDirection === 'TRANSFER' ? 'none' : '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              background: selectedDirection === 'TRANSFER' ? 'var(--transfer)' : 'rgba(255, 255, 255, 0.06)',
+              background: selectedDirection === 'TRANSFER' ? 'var(--transfer)' : 'var(--bg-input)',
               color: selectedDirection === 'TRANSFER' ? '#fff' : 'var(--text-secondary)',
               transition: 'all 0.15s ease',
             }}
@@ -384,10 +384,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               fontSize: '12px',
               fontWeight: 600,
               whiteSpace: 'nowrap',
-              border: 'none',
+              border: onlyUncategorized ? 'none' : '1px solid var(--border-subtle)',
               cursor: 'pointer',
-              background: onlyUncategorized ? 'var(--warning)' : 'rgba(255, 255, 255, 0.06)',
-              color: onlyUncategorized ? '#000' : 'var(--text-secondary)',
+              background: onlyUncategorized ? 'var(--warning)' : 'var(--bg-input)',
+              color: onlyUncategorized ? '#fff' : 'var(--text-secondary)',
               transition: 'all 0.15s ease',
             }}
           >
@@ -441,7 +441,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}
           >
             <AlertCircle size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-            <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff', marginBottom: '4px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
               Không có giao dịch nào
             </div>
             <div style={{ fontSize: '13px' }}>
@@ -511,14 +511,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           borderRadius: '10px',
                           flexShrink: 0,
                           background: tx.category?.color
-                            ? `${tx.category.color}22`
+                            ? `${tx.category.color}15`
                             : isInc
                             ? 'var(--income-bg)'
                             : isExp
                             ? 'var(--expense-bg)'
                             : 'var(--transfer-bg)',
                           border: `1px solid ${
-                            tx.category?.color ? `${tx.category.color}44` : 'rgba(255,255,255,0.06)'
+                            tx.category?.color ? `${tx.category.color}35` : 'var(--border-subtle)'
                           }`,
                           display: 'flex',
                           alignItems: 'center',
@@ -540,7 +540,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           style={{
                             fontSize: '13.5px',
                             fontWeight: 600,
-                            color: '#fff',
+                            color: 'var(--text-primary)',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
@@ -562,11 +562,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           <span>{tx.account?.displayName || 'MB Bank'}</span>
                           <span>•</span>
                           {tx.category ? (
-                            <span style={{ color: tx.category.color, fontWeight: 500 }}>
+                            <span style={{ color: tx.category.color, fontWeight: 600 }}>
                               {tx.category.name}
                             </span>
                           ) : (
-                            <span style={{ color: 'var(--warning)', fontWeight: 500 }}>
+                            <span style={{ color: 'var(--warning)', fontWeight: 600 }}>
                               Chưa phân loại
                             </span>
                           )}
@@ -588,7 +588,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             fontWeight: 700,
                             fontSize: '14px',
                             fontFamily: 'var(--font-mono)',
-                            color: isInc ? 'var(--income)' : isExp ? '#fff' : 'var(--transfer)',
+                            color: isInc ? 'var(--income)' : isExp ? 'var(--expense)' : 'var(--transfer)',
                             letterSpacing: '-0.02em',
                           }}
                         >
@@ -668,15 +668,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               <button
                 onClick={() => setActiveTx(null)}
                 style={{
-                  background: 'rgba(255,255,255,0.06)',
-                  border: 'none',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
+                  width: '30px',
+                  height: '30px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   cursor: 'pointer',
                 }}
               >
@@ -689,7 +689,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               style={{
                 textAlign: 'center',
                 padding: '20px',
-                background: 'rgba(255, 255, 255, 0.03)',
+                background: 'var(--bg-input)',
                 borderRadius: '16px',
                 marginBottom: '20px',
                 border: '1px solid var(--border-subtle)',
@@ -732,7 +732,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '22px' }}>
               <div>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>NỘI DUNG CHUYỂN KHOẢN</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff', marginTop: '3px', wordBreak: 'break-word' }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginTop: '3px', wordBreak: 'break-word' }}>
                   {activeTx.description}
                 </div>
               </div>
@@ -778,9 +778,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: isSelected ? `${c.color}33` : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${isSelected ? c.color : 'rgba(255,255,255,0.08)'}`,
-                          color: isSelected ? '#fff' : 'var(--text-secondary)',
+                          background: isSelected ? `${c.color}18` : 'var(--bg-input)',
+                          border: `1px solid ${isSelected ? c.color : 'var(--border-subtle)'}`,
+                          color: isSelected ? c.color : 'var(--text-secondary)',
                           transition: 'all 0.12s ease',
                         }}
                       >
@@ -867,12 +867,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       flex: 1,
                       padding: '8px',
                       borderRadius: '8px',
-                      border: 'none',
+                      border: formDirection === 'EXPENSE' ? 'none' : '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: 600,
-                      background: formDirection === 'EXPENSE' ? 'var(--expense)' : 'rgba(255,255,255,0.06)',
-                      color: '#fff',
+                      background: formDirection === 'EXPENSE' ? 'var(--expense)' : 'var(--bg-input)',
+                      color: formDirection === 'EXPENSE' ? '#ffffff' : 'var(--text-secondary)',
                     }}
                   >
                     Chi tiêu
@@ -884,12 +884,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       flex: 1,
                       padding: '8px',
                       borderRadius: '8px',
-                      border: 'none',
+                      border: formDirection === 'INCOME' ? 'none' : '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: 600,
-                      background: formDirection === 'INCOME' ? 'var(--income)' : 'rgba(255,255,255,0.06)',
-                      color: '#fff',
+                      background: formDirection === 'INCOME' ? 'var(--income)' : 'var(--bg-input)',
+                      color: formDirection === 'INCOME' ? '#ffffff' : 'var(--text-secondary)',
                     }}
                   >
                     Thu nhập
@@ -901,12 +901,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       flex: 1,
                       padding: '8px',
                       borderRadius: '8px',
-                      border: 'none',
+                      border: formDirection === 'TRANSFER' ? 'none' : '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: 600,
-                      background: formDirection === 'TRANSFER' ? 'var(--transfer)' : 'rgba(255,255,255,0.06)',
-                      color: '#fff',
+                      background: formDirection === 'TRANSFER' ? 'var(--transfer)' : 'var(--bg-input)',
+                      color: formDirection === 'TRANSFER' ? '#ffffff' : 'var(--text-secondary)',
                     }}
                   >
                     Chuyển khoản

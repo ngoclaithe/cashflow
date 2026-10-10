@@ -48,7 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Top Header Bar */}
       <header
         style={{
-          background: 'rgba(7, 10, 16, 0.88)',
+          background: 'rgba(255, 255, 255, 0.92)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -57,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           zIndex: 50,
           padding: '10px 16px',
           paddingTop: 'calc(10px + var(--safe-top))',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
         }}
       >
         <div
@@ -85,18 +86,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 width: '34px',
                 height: '34px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #6366f1, #10b981)',
+                background: 'linear-gradient(135deg, #4f46e5, #059669)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.35)',
+                boxShadow: '0 3px 8px rgba(79, 70, 229, 0.25)',
               }}
             >
               <Wallet size={18} color="#fff" />
             </div>
             <div>
-              <div style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff' }}>
-                Cashflow<span style={{ color: '#10b981' }}>.</span>
+              <div style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+                Cashflow<span style={{ color: '#059669' }}>.</span>
               </div>
             </div>
           </div>
@@ -107,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             style={{
               display: 'flex',
               alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.04)',
+              background: 'var(--bg-input)',
               padding: '3px',
               borderRadius: 'var(--radius-lg)',
               border: '1px solid var(--border-subtle)',
@@ -134,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     border: 'none',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
-                    boxShadow: isActive ? '0 2px 8px rgba(99, 102, 241, 0.3)' : 'none',
+                    boxShadow: isActive ? '0 2px 8px rgba(79, 70, 229, 0.25)' : 'none',
                   }}
                 >
                   <Icon size={15} />
@@ -167,7 +168,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <div
                   style={{
-                    background: 'rgba(255, 255, 255, 0.07)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-subtle)',
                     padding: '5px 10px',
                     borderRadius: '8px',
                     fontSize: '12px',
@@ -181,10 +183,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       width: '7px',
                       height: '7px',
                       borderRadius: '50%',
-                      background: '#10b981',
+                      background: '#059669',
                     }}
                   />
-                  <span style={{ fontWeight: 600 }}>{user.name ? user.name.split(' ')[0] : 'Admin'}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user.name ? user.name.split(' ')[0] : 'Admin'}</span>
                 </div>
                 <button
                   onClick={onLogout}

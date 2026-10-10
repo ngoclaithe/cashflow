@@ -195,11 +195,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         {rule.priority}
                       </span>
                     </td>
-                    <td style={{ padding: '12px 18px', fontWeight: 600, color: '#fff' }}>{rule.name}</td>
+                    <td style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--text-primary)' }}>{rule.name}</td>
                     <td style={{ padding: '12px 18px', color: 'var(--text-secondary)' }}>
                       {rule.field} {rule.operator}
                     </td>
-                    <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#facc15' }}>
+                    <td style={{ padding: '12px 18px', fontFamily: 'var(--font-mono)', color: '#b45309' }}>
                       "{rule.value}"
                     </td>
                     <td style={{ padding: '12px 18px' }}>
@@ -207,7 +207,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         className="badge"
                         style={{
                           background: `${rule.category?.color || '#94a3b8'}22`,
-                          color: rule.category?.color || '#fff',
+                          color: rule.category?.color || 'var(--text-primary)',
                         }}
                       >
                         {rule.category?.name || 'Danh mục'}
