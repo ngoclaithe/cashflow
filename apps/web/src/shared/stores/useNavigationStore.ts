@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { useSyncExternalStore } from 'react';
 
 export type NavigationTab = 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'savings' | 'calendar';
 
@@ -17,7 +17,7 @@ export const getInitialTab = (): NavigationTab => {
   try {
     if (typeof window === 'undefined') return 'dashboard';
 
-    // 1. Highest priority: URL Query Param (?tab=...)
+    // 1. Priority 1: URL Query Param (?tab=...)
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab') as NavigationTab;
     if (tabParam && VALID_TABS.includes(tabParam)) {
@@ -27,10 +27,9 @@ export const getInitialTab = (): NavigationTab => {
       return tabParam;
     }
 
-    // 2. Secondary priority: localStorage
+    // 2. Priority 2: localStorage fallback
     const savedTab = localStorage.getItem(STORAGE_KEY) as NavigationTab;
     if (savedTab && VALID_TABS.includes(savedTab)) {
-      // Sync URL address bar immediately so F5 or bookmark retains it
       const url = new URL(window.location.href);
       url.searchParams.set('tab', savedTab);
       window.history.replaceState({ tab: savedTab }, '', url.toString());
@@ -42,58 +41,93 @@ export const getInitialTab = (): NavigationTab => {
   return 'dashboard';
 };
 
-interface NavigationState {
-  activeTab: NavigationTab;
-  setActiveTab: (tab: NavigationTab | string, pushHistory?: boolean) => void;
-  syncWithUrl: () => void;
+let currentTab: NavigationTab = getInitialTab();
+const listeners = new Set<() => void>();
+
+const syncToBrowser = (tab: NavigationTab, pushHistory = true) => {
+  try {
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem(STORAGE_KEY, tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+
+    if (pushHistory) {
+      window.history.pushState({ tab }, '', url.toString());
+    } else {
+      window.history.replaceState({ tab }, '', url.toString());
+    }
+  } catch {
+    // ignore
+  }
+};
+
+const notify = () => {
+  listeners.forEach((listener) => listener());
+};
+
+const setActiveTab = (tab: NavigationTab | string, pushHistory = true) => {
+  const validTab = VALID_TABS.includes(tab as NavigationTab) ? (tab as NavigationTab) : 'dashboard';
+  if (currentTab === validTab) {
+    syncToBrowser(validTab, false);
+    return;
+  }
+  currentTab = validTab;
+  syncToBrowser(validTab, pushHistory);
+  notify();
+};
+
+const syncWithUrl = () => {
+  const fromBrowser = getInitialTab();
+  if (currentTab !== fromBrowser) {
+    currentTab = fromBrowser;
+    notify();
+  }
+};
+
+interface NavigationStoreHook {
+  (): {
+    activeTab: NavigationTab;
+    setActiveTab: (tab: NavigationTab | string, pushHistory?: boolean) => void;
+    syncWithUrl: () => void;
+  };
+  getState: () => {
+    activeTab: NavigationTab;
+    setActiveTab: (tab: NavigationTab | string, pushHistory?: boolean) => void;
+    syncWithUrl: () => void;
+  };
 }
 
-export const useNavigationStore = create<NavigationState>((set, get) => {
-  const syncToBrowser = (tab: NavigationTab, pushHistory = true) => {
-    try {
-      if (typeof window === 'undefined') return;
+export const useNavigationStore: NavigationStoreHook = (() => {
+  const hook = () => {
+    const activeTab = useSyncExternalStore(
+      (callback) => {
+        listeners.add(callback);
+        return () => {
+          listeners.delete(callback);
+        };
+      },
+      () => currentTab,
+      () => 'dashboard' as NavigationTab
+    );
 
-      // 1. Persist to localStorage
-      localStorage.setItem(STORAGE_KEY, tab);
-
-      // 2. Persist to URL search params
-      const url = new URL(window.location.href);
-      url.searchParams.set('tab', tab);
-
-      if (pushHistory) {
-        window.history.pushState({ tab }, '', url.toString());
-      } else {
-        window.history.replaceState({ tab }, '', url.toString());
-      }
-    } catch {
-      // ignore
-    }
+    return {
+      activeTab,
+      setActiveTab,
+      syncWithUrl,
+    };
   };
 
-  return {
-    activeTab: getInitialTab(),
+  hook.getState = () => ({
+    activeTab: currentTab,
+    setActiveTab,
+    syncWithUrl,
+  });
 
-    setActiveTab: (tab: NavigationTab | string, pushHistory = true) => {
-      const validTab = VALID_TABS.includes(tab as NavigationTab) ? (tab as NavigationTab) : 'dashboard';
-      if (get().activeTab === validTab) {
-        // Ensure browser URL and localStorage are synced even if clicking active tab
-        syncToBrowser(validTab, false);
-        return;
-      }
-      set({ activeTab: validTab });
-      syncToBrowser(validTab, pushHistory);
-    },
+  return hook;
+})();
 
-    syncWithUrl: () => {
-      const currentTab = getInitialTab();
-      if (get().activeTab !== currentTab) {
-        set({ activeTab: currentTab });
-      }
-    },
-  };
-});
-
-// Setup popstate listener to handle browser back / forward navigation
+// Listen for browser forward/backward navigation and cross-tab storage changes
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', () => {
     useNavigationStore.getState().syncWithUrl();
