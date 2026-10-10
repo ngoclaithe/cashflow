@@ -270,9 +270,10 @@ export const App: React.FC = () => {
         onLogout={handleLogout}
         onSync={handleTriggerSync}
         isSyncing={isSyncing}
+        totalBalance={summary?.availableCash}
       />
 
-      <main style={{ flex: 1, maxWidth: '1360px', width: '100%', margin: '0 auto', padding: '28px 24px' }}>
+      <main style={{ flex: 1, maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '16px 14px' }}>
         {activeTab === 'dashboard' && (
           <DashboardView
             summary={summary}
@@ -293,6 +294,7 @@ export const App: React.FC = () => {
             onReclassify={handleReclassify}
             onDeleteTransaction={handleDeleteTransaction}
             onAddTransaction={handleAddTransaction}
+            onAddRule={handleAddRule}
           />
         )}
 

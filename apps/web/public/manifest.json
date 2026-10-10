@@ -1,0 +1,18 @@
+{
+  "name": "Cashflow — Quản lý Tài chính",
+  "short_name": "Cashflow",
+  "description": "Quản lý dòng tiền cá nhân và tự động đồng bộ biến động số dư SePay & MB Bank",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

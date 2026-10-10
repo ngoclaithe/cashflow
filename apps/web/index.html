@@ -2,13 +2,31 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cashflow — Quản lý Tài chính Cá nhân & Đối soát SePay</title>
-    <meta name="description" content="Hệ thống quản lý tài chính cá nhân tự động đồng bộ biến động số dư ngân hàng SePay và MB Bank, kiểm soát ngân sách và mục tiêu tích lũy." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#090d16" />
+    
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cashflow" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <title>Cashflow — Quản lý Tài chính & SePay</title>
+    <meta name="description" content="Quản lý dòng tiền cá nhân tối ưu cho iPhone. Tự động đồng bộ giao dịch ngân hàng SePay và MB Bank." />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(err => {
+            console.log('SW registration error:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

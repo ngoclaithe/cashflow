@@ -34,3 +34,6 @@ coverage/
 
 # Prisma
 # Keep migrations, ignore generated client if needed (Prisma generated files)
+
+# Internal deployment scripts
+scripts/

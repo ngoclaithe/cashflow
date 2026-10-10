@@ -103,109 +103,109 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: '16px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+          gap: '12px',
         }}
       >
         {/* Available Cash */}
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               SỐ DƯ KHẢ DỤNG
             </span>
             <div
               style={{
                 background: 'rgba(99, 102, 241, 0.15)',
-                padding: '8px',
-                borderRadius: '10px',
+                padding: '7px',
+                borderRadius: '8px',
               }}
             >
-              <Wallet size={18} color="var(--primary)" />
+              <Wallet size={16} color="var(--primary)" />
             </div>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '12px', color: '#fff' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: '#fff' }}>
             {formatVND(availableCash)}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-            Tài khoản MB Bank & tiền mặt khả dụng
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            MB Bank & tiền mặt khả dụng
           </div>
         </div>
 
         {/* Income */}
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               THU NHẬP THÁNG {currentMonth.month}
             </span>
             <div
               style={{
                 background: 'var(--income-bg)',
-                padding: '8px',
-                borderRadius: '10px',
+                padding: '7px',
+                borderRadius: '8px',
               }}
             >
-              <TrendingUp size={18} color="var(--income)" />
+              <TrendingUp size={16} color="var(--income)" />
             </div>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '12px', color: 'var(--income)' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: 'var(--income)' }}>
             {formatVND(currentMonth.income)}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-            Đã ghi nhận (Không bao gồm chuyển nội bộ)
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Đã ghi nhận (không tính nội bộ)
           </div>
         </div>
 
         {/* Expenses */}
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               CHI TIÊU THÁNG {currentMonth.month}
             </span>
             <div
               style={{
                 background: 'var(--expense-bg)',
-                padding: '8px',
-                borderRadius: '10px',
+                padding: '7px',
+                borderRadius: '8px',
               }}
             >
-              <TrendingDown size={18} color="var(--expense)" />
+              <TrendingDown size={16} color="var(--expense)" />
             </div>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, marginTop: '12px', color: 'var(--expense)' }}>
+          <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: 'var(--expense)' }}>
             {formatVND(currentMonth.expenses)}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-            Đã hạch toán chi trong tháng
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Hạch toán chi trong tháng
           </div>
         </div>
 
         {/* Net Cash Flow */}
         <div className="glass-card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               DÒNG TIỀN RÒNG (NET)
             </span>
             <div
               style={{
                 background: 'rgba(139, 92, 246, 0.15)',
-                padding: '8px',
-                borderRadius: '10px',
+                padding: '7px',
+                borderRadius: '8px',
               }}
             >
-              <Scale size={18} color="var(--transfer)" />
+              <Scale size={16} color="var(--transfer)" />
             </div>
           </div>
           <div
             style={{
-              fontSize: '28px',
+              fontSize: '24px',
               fontWeight: 800,
-              marginTop: '12px',
+              marginTop: '8px',
               color: currentMonth.netCashFlow >= 0 ? 'var(--income)' : 'var(--expense)',
             }}
           >
             {formatVND(currentMonth.netCashFlow)}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
             Thu nhập trừ Chi phí thực tế
           </div>
         </div>
@@ -215,8 +215,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-          gap: '24px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
+          gap: '16px',
         }}
       >
         {/* Left Column */}
@@ -333,26 +333,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Chưa có giao dịch nào được ghi nhận. Bạn có thể bấm "Đồng bộ SePay" hoặc thêm thủ công.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {recentTransactions.map((tx) => (
                   <div
                     key={tx.id}
+                    onClick={onViewAllTransactions}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
+                      padding: '9px 12px',
                       background: 'rgba(255, 255, 255, 0.02)',
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      gap: '10px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                       <div
                         style={{
-                          width: '34px',
-                          height: '34px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '8px',
+                          flexShrink: 0,
                           background:
                             tx.direction === 'INCOME'
                               ? 'var(--income-bg)'
@@ -365,18 +369,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         }}
                       >
                         {tx.direction === 'INCOME' ? (
-                          <ArrowDownLeft size={16} color="var(--income)" />
+                          <ArrowDownLeft size={15} color="var(--income)" />
                         ) : tx.direction === 'EXPENSE' ? (
-                          <ArrowUpRight size={16} color="var(--expense)" />
+                          <ArrowUpRight size={15} color="var(--expense)" />
                         ) : (
-                          <ArrowLeftRight size={16} color="var(--transfer)" />
+                          <ArrowLeftRight size={15} color="var(--transfer)" />
                         )}
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            color: '#fff',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
                           {tx.description}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px' }}>
                           {formatDate(tx.transactionDate)} •{' '}
                           <span style={{ color: tx.category?.color || 'var(--text-secondary)' }}>
                             {tx.category?.name || 'Chưa phân loại'}
@@ -387,13 +400,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div
                       style={{
                         fontWeight: 700,
-                        fontSize: '14px',
+                        fontSize: '13px',
                         fontFamily: 'var(--font-mono)',
+                        flexShrink: 0,
                         color:
                           tx.direction === 'INCOME'
                             ? 'var(--income)'
                             : tx.direction === 'EXPENSE'
-                            ? 'var(--expense)'
+                            ? '#fff'
                             : 'var(--transfer)',
                       }}
                     >
