@@ -102,7 +102,7 @@ export const App: React.FC = () => {
         }}
       >
         {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
-        {activeTab === 'calendar' && <CalendarPage onNavigate={setActiveTab} />}
+        {activeTab === 'calendar' && <TransactionsPage onNavigate={setActiveTab} initialView="calendar" />}
         {activeTab === 'transactions' && <TransactionsPage onNavigate={setActiveTab} />}
         {activeTab === 'budgets' && <BudgetsPage />}
         {activeTab === 'savings' && <SavingsPage />}

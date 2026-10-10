@@ -16,16 +16,20 @@ import {
   Copy,
   Sparkles,
   Calendar,
+  List,
 } from 'lucide-react';
 import { Transaction, Category, Account, TransactionDirection } from '../../../shared/types';
 import { formatVND, formatDate } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
+import { CalendarPage } from '../../calendar';
 
 interface TransactionsPageProps {
   onNavigate?: (tab: string) => void;
+  initialView?: 'list' | 'calendar';
 }
 
-export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate }) => {
+export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, initialView = 'list' }) => {
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>(initialView);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [categories, setCategories] = useState<Category[]>([]);
@@ -229,6 +233,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate }
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: '12px',
         }}
       >
@@ -237,21 +242,65 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate }
             Sổ giao dịch
           </h2>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Tổng cộng {pagination.total} giao dịch được ghi nhận
+            {viewMode === 'calendar'
+              ? 'Xem dòng tiền theo từng ngày'
+              : `Tổng cộng ${pagination.total} giao dịch được ghi nhận`}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {onNavigate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Segmented Switcher for List vs Calendar */}
+          <div
+            style={{
+              display: 'flex',
+              background: 'var(--bg-input)',
+              padding: '3px',
+              borderRadius: '9px',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
             <button
-              onClick={() => onNavigate('calendar')}
-              className="btn btn-secondary"
-              style={{ padding: '8px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              onClick={() => setViewMode('list')}
+              style={{
+                border: 'none',
+                background: viewMode === 'list' ? 'var(--bg-card)' : 'transparent',
+                color: viewMode === 'list' ? 'var(--primary)' : 'var(--text-muted)',
+                fontWeight: viewMode === 'list' ? 700 : 500,
+                fontSize: '13px',
+                padding: '6px 12px',
+                borderRadius: '7px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              }}
             >
-              <Calendar size={15} />
+              <List size={14} />
+              <span>Danh sách</span>
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              style={{
+                border: 'none',
+                background: viewMode === 'calendar' ? 'var(--bg-card)' : 'transparent',
+                color: viewMode === 'calendar' ? 'var(--primary)' : 'var(--text-muted)',
+                fontWeight: viewMode === 'calendar' ? 700 : 500,
+                fontSize: '13px',
+                padding: '6px 12px',
+                borderRadius: '7px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                boxShadow: viewMode === 'calendar' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              }}
+            >
+              <Calendar size={14} />
               <span>Dạng lịch</span>
             </button>
-          )}
+          </div>
+
           <button
             onClick={() => setIsAddOpen(true)}
             className="btn btn-primary"
@@ -263,9 +312,13 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate }
         </div>
       </div>
 
-      {/* Filter and Search Section */}
-      <div
-        className="glass-card"
+      {viewMode === 'calendar' ? (
+        <CalendarPage onNavigate={onNavigate} />
+      ) : (
+        <>
+          {/* Filter and Search Section */}
+          <div
+            className="glass-card"
         style={{
           padding: '12px 14px',
           display: 'flex',
@@ -537,6 +590,8 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate }
             Trang sau <ChevronRight size={16} />
           </button>
         </div>
+      )}
+        </>
       )}
 
       {/* Detail Bottom Sheet / Modal */}

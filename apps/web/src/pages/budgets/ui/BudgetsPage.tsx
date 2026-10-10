@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, PieChart, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit3, PieChart, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { BudgetStatus, Category } from '../../../shared/types';
 import { formatVND } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
@@ -10,6 +10,7 @@ export const BudgetsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<BudgetStatus | null>(null);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -32,18 +33,46 @@ export const BudgetsPage: React.FC = () => {
     loadData();
   }, []);
 
+  const handleOpenAdd = () => {
+    setEditingBudget(null);
+    setName('');
+    setAmount('');
+    setCategoryId('');
+    setPeriod('MONTHLY');
+    setIsAddOpen(true);
+  };
+
+  const handleOpenEdit = (b: BudgetStatus) => {
+    setEditingBudget(b);
+    setName(b.name);
+    setAmount(b.limitAmount.toString());
+    setCategoryId(b.categoryId || '');
+    setPeriod(b.period || 'MONTHLY');
+    setIsAddOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !amount) return;
 
-    await api.createBudget({
-      name,
-      amount: parseFloat(amount),
-      categoryId: categoryId || undefined,
-      period,
-    });
+    if (editingBudget) {
+      await api.updateBudget(editingBudget.id, {
+        name,
+        amount: parseFloat(amount),
+        categoryId: categoryId || undefined,
+        period,
+      });
+    } else {
+      await api.createBudget({
+        name,
+        amount: parseFloat(amount),
+        categoryId: categoryId || undefined,
+        period,
+      });
+    }
 
     setIsAddOpen(false);
+    setEditingBudget(null);
     setName('');
     setAmount('');
     setCategoryId('');
@@ -75,7 +104,7 @@ export const BudgetsPage: React.FC = () => {
           </div>
         </div>
 
-        <button onClick={() => setIsAddOpen(true)} className="btn btn-primary">
+        <button onClick={handleOpenAdd} className="btn btn-primary">
           <Plus size={16} />
           <span>Tạo ngân sách mới</span>
         </button>
@@ -123,14 +152,24 @@ export const BudgetsPage: React.FC = () => {
                   {b.categoryName ? `Danh mục: ${b.categoryName}` : 'Tất cả các danh mục'}
                 </div>
               </div>
-              <button
-                onClick={() => handleDeleteBudget(b.id)}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '6px' }}
-                title="Xóa ngân sách"
-              >
-                <Trash2 size={14} color="var(--expense)" />
-              </button>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => handleOpenEdit(b)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 8px' }}
+                  title="Chỉnh sửa ngân sách"
+                >
+                  <Edit3 size={14} color="var(--primary)" />
+                </button>
+                <button
+                  onClick={() => handleDeleteBudget(b.id)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '6px 8px' }}
+                  title="Xóa ngân sách"
+                >
+                  <Trash2 size={14} color="var(--expense)" />
+                </button>
+              </div>
             </div>
 
             <div>
@@ -167,11 +206,13 @@ export const BudgetsPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Add Modal */}
+      {/* Add / Edit Modal */}
       {isAddOpen && (
         <div className="modal-overlay" onClick={() => setIsAddOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', marginBottom: '14px' }}>Tạo ngân sách mới</h3>
+            <h3 style={{ fontSize: '18px', marginBottom: '14px' }}>
+              {editingBudget ? 'Chỉnh sửa ngân sách' : 'Tạo ngân sách mới'}
+            </h3>
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div className="form-group">
                 <label className="form-label">Tên ngân sách (VD: Chi tiêu ăn uống tháng 10)</label>
@@ -226,7 +267,7 @@ export const BudgetsPage: React.FC = () => {
                   className="btn btn-primary"
                   style={{ flex: 1, justifyContent: 'center' }}
                 >
-                  Lưu ngân sách
+                  {editingBudget ? 'Cập nhật ngân sách' : 'Lưu ngân sách'}
                 </button>
               </div>
             </form>

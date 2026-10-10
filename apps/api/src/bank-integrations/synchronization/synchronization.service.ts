@@ -54,6 +54,26 @@ export class SynchronizationService {
         else skipped++;
       }
 
+      // Reconcile account balance with mathematical accuracy based on real transactions
+      const userAccounts = await this.prisma.account.findMany({ where: { userId } });
+      for (const acc of userAccounts) {
+        const incomeAgg = await this.prisma.transaction.aggregate({
+          where: { accountId: acc.id, direction: TransactionDirection.INCOME, isInternalTransfer: false },
+          _sum: { amount: true },
+        });
+        const expenseAgg = await this.prisma.transaction.aggregate({
+          where: { accountId: acc.id, direction: TransactionDirection.EXPENSE, isInternalTransfer: false },
+          _sum: { amount: true },
+        });
+        const totalInc = new Decimal(incomeAgg._sum.amount?.toString() || 0);
+        const totalExp = new Decimal(expenseAgg._sum.amount?.toString() || 0);
+        const net = totalInc.minus(totalExp);
+        await this.prisma.account.update({
+          where: { id: acc.id },
+          data: { balance: net },
+        });
+      }
+
       await this.prisma.syncRun.update({
         where: { id: syncRun.id },
         data: {
@@ -114,10 +134,9 @@ export class SynchronizationService {
     const existing = await this.prisma.transaction.findFirst({
       where: {
         accountId: account.id,
-        OR: [
-          { externalTransactionId: tx.externalTransactionId },
-          { transactionFingerprint: fingerprint },
-        ],
+        ...(tx.externalTransactionId
+          ? { externalTransactionId: tx.externalTransactionId }
+          : { transactionFingerprint: fingerprint }),
       },
     });
 
@@ -223,7 +242,9 @@ export class SynchronizationService {
   }
 
   private computeFingerprint(accountId: string, tx: NormalizedBankTransaction): string {
-    const raw = `${accountId}_${tx.transactionDate.toISOString().slice(0, 10)}_${tx.amount}_${tx.direction}_${tx.description.trim().toUpperCase()}`;
+    const raw = tx.externalTransactionId
+      ? `${accountId}_${tx.externalTransactionId}`
+      : `${accountId}_${tx.transactionDate.toISOString()}_${tx.amount}_${tx.direction}_${(tx.description || '').trim().toUpperCase()}_${tx.code || ''}`;
     return crypto.createHash('sha256').update(raw).digest('hex');
   }
 
