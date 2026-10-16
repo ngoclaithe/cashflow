@@ -280,6 +280,14 @@ export class ApiClient {
     return this.request<any>('/analytics/config');
   }
 
+  async getCategoryReport(startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const query = params.toString();
+    return this.request<any>(`/analytics/report${query ? `?${query}` : ''}`);
+  }
+
   async runAnalytics(options: any) {
     return this.request<any>('/analytics/analyze', {
       method: 'POST',

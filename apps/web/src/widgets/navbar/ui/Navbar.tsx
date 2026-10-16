@@ -11,6 +11,7 @@ import {
   LogIn,
   Sparkles,
   Tags,
+  BarChart3,
 } from 'lucide-react';
 import { User } from '../../../shared/types';
 
@@ -37,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
+    { id: 'report', label: 'Báo cáo', icon: BarChart3 },
     { id: 'analytics', label: 'Dự báo AI', icon: Sparkles },
     { id: 'categories', label: 'Danh mục', icon: Tags },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },

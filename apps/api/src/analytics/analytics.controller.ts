@@ -18,6 +18,19 @@ export class AnalyticsController {
   }
 
   /**
+   * Fast, real-time Category Budget Report for a selected historical period.
+   * Does NOT call Gemini AI, calculates instantaneously from DB transactions & budgets.
+   */
+  @Get('report')
+  async getReport(
+    @CurrentUser() user: UserPayload,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.analyticsService.getCategoryReport(user.userId, startDate, endDate);
+  }
+
+  /**
    * Run custom analysis with user's selected parameters, dates, upcoming items, and question.
    */
   @Post('analyze')

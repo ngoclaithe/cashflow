@@ -799,4 +799,243 @@ export class AnalyticsService {
       aiAnalysis,
     };
   }
+
+  /**
+   * Fast, real-time Category Budget Report for a selected historical period.
+   * Does NOT call Gemini AI, calculates instantaneously from DB transactions & budgets.
+   */
+  async getCategoryReport(userId: string, startDate?: string, endDate?: string) {
+    const now = new Date();
+    let startD: Date;
+    let endD: Date;
+
+    if (startDate) {
+      startD = new Date(startDate);
+      startD.setHours(0, 0, 0, 0);
+    } else {
+      if (now.getDate() >= 10) {
+        startD = new Date(now.getFullYear(), now.getMonth(), 10);
+      } else {
+        startD = new Date(now);
+        startD.setDate(startD.getDate() - 7);
+      }
+      startD.setHours(0, 0, 0, 0);
+    }
+
+    if (endDate) {
+      endD = new Date(endDate);
+      endD.setHours(23, 59, 59, 999);
+    } else {
+      endD = new Date(now);
+    }
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const analysisDays = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / msPerDay));
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        userId,
+        isInternalTransfer: false,
+        transactionDate: {
+          gte: startD,
+          lte: endD,
+        },
+      },
+      include: {
+        category: true,
+      },
+      orderBy: {
+        transactionDate: 'desc',
+      },
+    });
+
+    let totalIncome = new Decimal(0);
+    let totalExpense = new Decimal(0);
+    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number }>();
+    const anomalies: any[] = [];
+
+    for (const tx of transactions) {
+      const amt = new Decimal(tx.amount.toString());
+      if (tx.direction === TransactionDirection.INCOME) {
+        totalIncome = totalIncome.plus(amt);
+      } else if (tx.direction === TransactionDirection.EXPENSE) {
+        totalExpense = totalExpense.plus(amt);
+
+        const catId = tx.categoryId || 'uncategorized';
+        const catName = tx.category?.name || 'Chưa phân loại';
+        const catColor = tx.category?.color || '#64748b';
+
+        if (!categoryMap.has(catId)) {
+          categoryMap.set(catId, {
+            id: catId,
+            name: catName,
+            color: catColor,
+            amount: new Decimal(0),
+            count: 0,
+          });
+        }
+        const existing = categoryMap.get(catId)!;
+        existing.amount = existing.amount.plus(amt);
+        existing.count += 1;
+
+        if (amt.greaterThanOrEqualTo(500000)) {
+          anomalies.push({
+            id: tx.id,
+            amount: amt.toNumber(),
+            description: tx.description,
+            date: tx.transactionDate.toISOString().slice(0, 10),
+            categoryName: catName,
+          });
+        }
+      }
+    }
+
+    const totalExpenseNum = totalExpense.toNumber();
+    const totalIncomeNum = totalIncome.toNumber();
+    const netBurnNum = totalExpense.minus(totalIncome).toNumber();
+
+    const dailyExpenseAvg = Math.round(totalExpenseNum / analysisDays);
+    const dailyIncomeAvg = Math.round(totalIncomeNum / analysisDays);
+    const dailyNetBurnAvg = Math.max(0, Math.round(netBurnNum / analysisDays));
+
+    const categoriesList = Array.from(categoryMap.values())
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        amount: c.amount.toNumber(),
+        percent: totalExpenseNum > 0 ? Math.round((c.amount.toNumber() / totalExpenseNum) * 100) : 0,
+        count: c.count,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const userBudgets = await this.prisma.budget.findMany({
+      where: { userId, isActive: true },
+      include: { category: true },
+    });
+
+    const budgetMapByCategoryId = new Map<string, number>();
+    const budgetMapByName = new Map<string, number>();
+
+    for (const b of userBudgets) {
+      const amt = Number(b.amount);
+      if (b.categoryId) {
+        budgetMapByCategoryId.set(b.categoryId, (budgetMapByCategoryId.get(b.categoryId) || 0) + amt);
+      }
+      if (b.category?.name) {
+        budgetMapByName.set(b.category.name.toLowerCase().trim(), amt);
+      }
+      budgetMapByName.set(b.name.toLowerCase().trim(), amt);
+    }
+
+    const categoryReport: CategoryReportItem[] = [];
+    let totalBudgetSum = 0;
+    let totalSpentInBudgetedSum = 0;
+    let categoriesOverBudgetCount = 0;
+    let categoriesNearLimitCount = 0;
+    let categoriesSafeCount = 0;
+
+    for (const cat of categoriesList) {
+      const budgetAmount =
+        budgetMapByCategoryId.get(cat.id) ||
+        budgetMapByName.get(cat.name.toLowerCase().trim()) ||
+        0;
+
+      const spent = cat.amount;
+      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' = 'NO_BUDGET';
+      let percentOfBudget = 0;
+      let remainingBudget: number | null = null;
+
+      if (budgetAmount > 0) {
+        totalBudgetSum += budgetAmount;
+        totalSpentInBudgetedSum += spent;
+        percentOfBudget = Math.round((spent / budgetAmount) * 100);
+        remainingBudget = Math.max(0, budgetAmount - spent);
+
+        if (percentOfBudget > 100) {
+          status = 'OVER_BUDGET';
+          categoriesOverBudgetCount++;
+        } else if (percentOfBudget >= 80) {
+          status = 'NEAR_LIMIT';
+          categoriesNearLimitCount++;
+        } else {
+          status = 'SAFE';
+          categoriesSafeCount++;
+        }
+      }
+
+      categoryReport.push({
+        id: cat.id,
+        name: cat.name,
+        color: cat.color,
+        spent,
+        percentOfTotal: cat.percent,
+        txCount: cat.count,
+        dailyAverage: Math.round(spent / analysisDays),
+        budgetAmount,
+        remainingBudget,
+        percentOfBudget,
+        status,
+      });
+    }
+
+    // Include budgeted categories with 0 spent
+    for (const b of userBudgets) {
+      const bCatId = b.categoryId || b.id;
+      const bCatName = b.category?.name || b.name;
+      const alreadyIncluded = categoryReport.some(
+        (c) => c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
+      );
+
+      if (!alreadyIncluded) {
+        const bAmt = Number(b.amount);
+        totalBudgetSum += bAmt;
+        categoriesSafeCount++;
+        categoryReport.push({
+          id: bCatId,
+          name: bCatName,
+          color: b.category?.color || '#94a3b8',
+          spent: 0,
+          percentOfTotal: 0,
+          txCount: 0,
+          dailyAverage: 0,
+          budgetAmount: bAmt,
+          remainingBudget: bAmt,
+          percentOfBudget: 0,
+          status: 'SAFE',
+        });
+      }
+    }
+
+    return {
+      timeframe: {
+        startDate: startD.toISOString().slice(0, 10),
+        startDateFormatted: startD.toLocaleDateString('vi-VN'),
+        endDate: endD.toISOString().slice(0, 10),
+        endDateFormatted: endD.toLocaleDateString('vi-VN'),
+        analysisDays,
+      },
+      stats: {
+        txCount: transactions.length,
+        totalIncome: totalIncomeNum,
+        totalExpense: totalExpenseNum,
+        netBurn: netBurnNum,
+        dailyExpenseAvg,
+        dailyIncomeAvg,
+        dailyNetBurnAvg,
+      },
+      categoryReport,
+      budgetSummary: {
+        totalBudget: totalBudgetSum,
+        totalSpentInBudgeted: totalSpentInBudgetedSum,
+        budgetUtilizationPercent:
+          totalBudgetSum > 0 ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100) : 0,
+        categoriesOverBudget: categoriesOverBudgetCount,
+        categoriesNearLimit: categoriesNearLimitCount,
+        categoriesSafe: categoriesSafeCount,
+      },
+      anomalies,
+    };
+  }
 }
+

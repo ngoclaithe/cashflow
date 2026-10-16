@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
 
-export type NavigationTab = 'dashboard' | 'transactions' | 'calendar' | 'analytics' | 'budgets' | 'savings' | 'categories';
+export type NavigationTab = 'dashboard' | 'transactions' | 'calendar' | 'report' | 'analytics' | 'budgets' | 'savings' | 'categories';
 
 export const VALID_TABS: readonly NavigationTab[] = [
   'dashboard',
   'transactions',
   'calendar',
+  'report',
   'analytics',
   'budgets',
   'savings',
