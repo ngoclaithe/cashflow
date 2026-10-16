@@ -4,7 +4,11 @@ import { SavingsGoal } from '../../../shared/types';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
 
-export const SavingsPage: React.FC = () => {
+interface SavingsPageProps {
+  refreshKey?: number;
+}
+
+export const SavingsPage: React.FC<SavingsPageProps> = ({ refreshKey }) => {
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +30,7 @@ export const SavingsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshKey]);
 
   const handleOpenAdd = () => {
     setEditingGoal(null);

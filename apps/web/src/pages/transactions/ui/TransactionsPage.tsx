@@ -525,9 +525,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 interface TransactionsPageProps {
   onNavigate?: (tab: string) => void;
   initialView?: 'list' | 'calendar';
+  refreshKey?: number;
 }
 
-export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, initialView = 'list' }) => {
+export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, initialView = 'list', refreshKey }) => {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>(initialView);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, totalPages: 1 });
@@ -552,13 +553,13 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
     }
   }, [initialView]);
 
-  const loadData = async (filters: any = {}, isSilent = false) => {
+  const loadData = async (filters: any = {}, isSilent = false, forceRefresh = false) => {
     if (!isSilent) setLoading(true);
     try {
       const [txRes, catRes, accRes] = await Promise.all([
         api.getTransactions(filters).catch(() => ({ items: [], pagination: { total: 0, page: 1, limit: 20, totalPages: 1 } })),
-        categories.length > 0 ? Promise.resolve(categories) : api.getCategories().catch(() => []),
-        accounts.length > 0 ? Promise.resolve(accounts) : api.getAccounts().catch(() => []),
+        !forceRefresh && categories.length > 0 ? Promise.resolve(categories) : api.getCategories().catch(() => []),
+        !forceRefresh && accounts.length > 0 ? Promise.resolve(accounts) : api.getAccounts().catch(() => []),
       ]);
       setTransactions(txRes.items);
       setPagination(txRes.pagination);
@@ -572,6 +573,20 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (refreshKey) {
+      const currentFilters: any = {
+        search: search.trim() || undefined,
+        direction: selectedDirection || undefined,
+        categoryId: selectedCategory || undefined,
+        accountId: selectedAccount || undefined,
+        uncategorized: onlyUncategorized || undefined,
+        page: pagination.page,
+      };
+      loadData(currentFilters, true, true);
+    }
+  }, [refreshKey]);
 
   const applyFilters = (overrides: Record<string, any> = {}) => {
     const filters: any = {
@@ -873,7 +888,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onNavigate, 
       </div>
 
       {viewMode === 'calendar' ? (
-        <CalendarPage onNavigate={onNavigate} />
+        <CalendarPage onNavigate={onNavigate} refreshKey={refreshKey} />
       ) : (
         <>
           {/* Filter and Search Section */}

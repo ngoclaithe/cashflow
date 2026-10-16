@@ -30,7 +30,11 @@ const COLOR_PRESETS = [
   '#475569', // Slate
 ];
 
-export const CategoriesPage: React.FC = () => {
+interface CategoriesPageProps {
+  refreshKey?: number;
+}
+
+export const CategoriesPage: React.FC<CategoriesPageProps> = ({ refreshKey }) => {
   const [activeTab, setActiveTab] = useState<'categories' | 'rules'>('categories');
   const [rules, setRules] = useState<CategorizationRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -81,7 +85,7 @@ export const CategoriesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshKey]);
 
   const showFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setActionMessage({ text, type });

@@ -23,12 +23,14 @@ interface DashboardPageProps {
   onNavigate?: (tab: string) => void;
   summary?: DashboardSummary | null;
   cashFlowHistory?: Array<{ monthLabel: string; income: number; expense: number; net: number }>;
+  refreshKey?: number;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigate,
   summary: propSummary,
   cashFlowHistory: propCashFlowHistory,
+  refreshKey,
 }) => {
   const [summary, setSummary] = useState<DashboardSummary | null>(propSummary || null);
   const [cashFlowHistory, setCashFlowHistory] = useState<Array<{ monthLabel: string; income: number; expense: number; net: number }>>(propCashFlowHistory || []);
@@ -46,7 +48,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   useEffect(() => {
     let isMounted = true;
     const loadData = async () => {
-      if (propSummary && propCashFlowHistory) return;
+      if (propSummary && propCashFlowHistory && !refreshKey) return;
       try {
         const [sumRes, cfRes] = await Promise.all([
           api.getDashboardSummary().catch(() => null),
@@ -67,7 +69,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   if (loading || !summary) {
     return (

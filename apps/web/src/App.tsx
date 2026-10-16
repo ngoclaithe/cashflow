@@ -17,6 +17,7 @@ export const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncKey, setSyncKey] = useState(0);
 
   useEffect(() => {
     syncWithUrl();
@@ -52,6 +53,7 @@ export const App: React.FC = () => {
     setIsSyncing(true);
     try {
       await api.triggerSync(1);
+      setSyncKey((prev) => prev + 1);
     } catch (err: any) {
       console.warn('Sync failed:', err);
     } finally {
@@ -105,12 +107,12 @@ export const App: React.FC = () => {
           padding: '16px 14px',
         }}
       >
-        {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
-        {activeTab === 'calendar' && <TransactionsPage onNavigate={setActiveTab} initialView="calendar" />}
-        {activeTab === 'transactions' && <TransactionsPage onNavigate={setActiveTab} />}
-        {activeTab === 'budgets' && <BudgetsPage />}
-        {activeTab === 'savings' && <SavingsPage />}
-        {activeTab === 'categories' && <CategoriesPage />}
+        {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} refreshKey={syncKey} />}
+        {activeTab === 'calendar' && <TransactionsPage onNavigate={setActiveTab} initialView="calendar" refreshKey={syncKey} />}
+        {activeTab === 'transactions' && <TransactionsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
+        {activeTab === 'budgets' && <BudgetsPage refreshKey={syncKey} />}
+        {activeTab === 'savings' && <SavingsPage refreshKey={syncKey} />}
+        {activeTab === 'categories' && <CategoriesPage refreshKey={syncKey} />}
       </main>
 
       <IosInstallPrompt />

@@ -4,7 +4,11 @@ import { BudgetStatus, Category } from '../../../shared/types';
 import { formatVND } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
 
-export const BudgetsPage: React.FC = () => {
+interface BudgetsPageProps {
+  refreshKey?: number;
+}
+
+export const BudgetsPage: React.FC<BudgetsPageProps> = ({ refreshKey }) => {
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +35,7 @@ export const BudgetsPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [refreshKey]);
 
   const handleOpenAdd = () => {
     setEditingBudget(null);

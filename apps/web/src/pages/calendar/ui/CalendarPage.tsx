@@ -15,6 +15,7 @@ import { api } from '../../../shared/api/client';
 interface CalendarPageProps {
   onNavigate?: (tab: string) => void;
   initialTransactions?: Transaction[];
+  refreshKey?: number;
 }
 
 type CalendarTab = 'spending' | 'cashflow';
@@ -23,6 +24,7 @@ type FilterPill = 'IN' | 'OUT' | 'ALL';
 export const CalendarPage: React.FC<CalendarPageProps> = ({
   onNavigate,
   initialTransactions = [],
+  refreshKey,
 }) => {
   // Current view date (year & month)
   const [currentDate, setCurrentDate] = useState(() => new Date());
@@ -70,7 +72,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [year, month]);
+  }, [year, month, refreshKey]);
 
   // Aggregate monthly amounts
   const monthSummary = useMemo(() => {
