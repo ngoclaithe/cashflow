@@ -30,6 +30,7 @@ export class ApiClient {
     const response = await fetch(url, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -54,6 +55,15 @@ export class ApiClient {
     });
     this.setToken(data.token);
     return data;
+  }
+
+  async logout() {
+    try {
+      await this.request('/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
+    this.clearToken();
   }
 
   async register(name: string, email: string, password: string) {

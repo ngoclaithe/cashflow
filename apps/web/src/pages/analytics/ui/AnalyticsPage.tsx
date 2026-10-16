@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Home,
   BarChart3,
+  PieChart,
   Clock,
   RotateCcw,
 } from 'lucide-react';
@@ -84,7 +85,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
         setEndDate(cfg.defaults.endDate);
         setTargetDate(cfg.defaults.targetDate);
         setExpectedIncome(cfg.defaults.expectedIncome);
-        setUpcomingItems(cfg.suggestedUpcomingItems || []);
+        const cleanUpcoming = (items: UpcomingItem[]) =>
+          (items || []).filter(
+            (i) => !i.id?.toLowerCase().includes('20_10') && !i.name?.toLowerCase().includes('20/10'),
+          );
+
+        setUpcomingItems(cleanUpcoming(cfg.suggestedUpcomingItems));
 
         // Load saved AI forecast JSON directly from DB
         if (cfg.latestAnalysis) {
@@ -98,7 +104,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
           setCachedTime(timeStr);
           setIsSettingsExpanded(false); // Collapse settings to showcase saved forecast
 
-          if (saved.customQuestion) {
+          if (saved.customQuestion && !saved.customQuestion.includes('20/10')) {
             setCustomQuestion(saved.customQuestion);
           }
           if (saved.timeframe?.startDate) setStartDate(saved.timeframe.startDate);
@@ -106,7 +112,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
           if (saved.timeframe?.targetDate) setTargetDate(saved.timeframe.targetDate);
           if (saved.expectedIncome !== undefined) setExpectedIncome(saved.expectedIncome);
           if (saved.upcoming?.items && saved.upcoming.items.length > 0) {
-            setUpcomingItems(saved.upcoming.items);
+            setUpcomingItems(cleanUpcoming(saved.upcoming.items));
           }
         }
       }
@@ -215,103 +221,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
     setNewItemAmount('');
     setNewItemDate('');
     setShowAddModal(false);
-  };
-
-  // Quick Preset Adders
-  const addQuickPreset = (type: 'gift_20_10' | 'utility_bills') => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const nextMonth = now.getDate() >= 10 ? currentMonth + 1 : currentMonth;
-
-    if (type === 'gift_20_10') {
-      const exists = upcomingItems.find((i) => i.id === 'gift_20_10');
-      if (exists) {
-        setUpcomingItems((prev) =>
-          prev.map((i) => (i.id === 'gift_20_10' ? { ...i, enabled: true } : i)),
-        );
-      } else {
-        setUpcomingItems((prev) => [
-          ...prev,
-          {
-            id: 'gift_20_10',
-            name: '🎁 Tiền quà 20/10 Phụ Nữ Việt Nam',
-            amount: 1000000,
-            type: 'EXPENSE',
-            dueDate: `${currentYear}-10-20`,
-            enabled: true,
-            isQuickPreset: true,
-          },
-        ]);
-      }
-    } else if (type === 'utility_bills') {
-      const exists = upcomingItems.find((i) => i.id === 'utility_bills');
-      if (exists) {
-        setUpcomingItems((prev) =>
-          prev.map((i) => (i.id === 'utility_bills' ? { ...i, enabled: true } : i)),
-        );
-      } else {
-        setUpcomingItems((prev) => [
-          ...prev,
-          {
-            id: 'utility_bills',
-            name: '⚡ Hóa đơn Điện / Nước / Mạng',
-            amount: 1200000,
-            type: 'EXPENSE',
-            dueDate: `${currentYear}-${pad(nextMonth + 1)}-02`,
-            enabled: true,
-            isQuickPreset: true,
-          },
-        ]);
-      }
-    }
-  };
-
-  // Date Range Presets (for history window)
-  const setRangePreset = (type: 'since_10th' | 'last_7_days' | 'this_month') => {
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-    const endStr = toIso(now);
-    setEndDate(endStr);
-
-    if (type === 'since_10th') {
-      const startD = new Date(now.getFullYear(), now.getMonth(), 10);
-      setStartDate(toIso(startD));
-    } else if (type === 'last_7_days') {
-      const startD = new Date(now);
-      startD.setDate(startD.getDate() - 7);
-      setStartDate(toIso(startD));
-    } else if (type === 'this_month') {
-      const startD = new Date(now.getFullYear(), now.getMonth(), 1);
-      setStartDate(toIso(startD));
-    }
-  };
-
-  // Target Forecast Date Presets
-  const setTargetPreset = (type: 'next_10th' | 'next_5th' | 'next_7th' | 'end_of_month') => {
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
-    if (type === 'next_10th') {
-      const nextMonth = now.getDate() >= 10 ? now.getMonth() + 1 : now.getMonth();
-      const targetD = new Date(now.getFullYear(), nextMonth, 10);
-      setTargetDate(toIso(targetD));
-    } else if (type === 'next_5th') {
-      const nextMonth = now.getDate() >= 5 ? now.getMonth() + 1 : now.getMonth();
-      const targetD = new Date(now.getFullYear(), nextMonth, 5);
-      setTargetDate(toIso(targetD));
-    } else if (type === 'next_7th') {
-      const nextMonth = now.getDate() >= 7 ? now.getMonth() + 1 : now.getMonth();
-      const targetD = new Date(now.getFullYear(), nextMonth, 7);
-      setTargetDate(toIso(targetD));
-    } else if (type === 'end_of_month') {
-      const targetD = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      setTargetDate(toIso(targetD));
-    }
   };
 
   // Find user's rent item
@@ -424,13 +333,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
           {onNavigate && (
             <button
               type="button"
-              onClick={() => onNavigate('report')}
+              onClick={() => onNavigate('budgets')}
               className="btn btn-secondary btn-sm"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              title="Xem Báo cáo thực chi so sánh với ngân sách"
+              title="Xem Quản lý ngân sách"
             >
-              <BarChart3 size={15} color="var(--primary)" />
-              <span>Xem Báo Cáo Hạng Mục</span>
+              <PieChart size={15} color="var(--primary)" />
+              <span>Xem Quản Lý Ngân Sách</span>
             </button>
           )}
         </div>
@@ -479,7 +388,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                   <Calendar size={15} color="var(--primary)" />
                   <span>1. Dữ liệu lịch sử đối chiếu</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
                     <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Từ ngày</label>
                     <input
@@ -501,32 +410,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                     />
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setRangePreset('since_10th')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Từ mùng 10 đến nay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRangePreset('last_7_days')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    7 ngày qua
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRangePreset('this_month')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Tháng này
-                  </button>
-                </div>
               </div>
 
               {/* Target Forecast Date */}
@@ -535,7 +418,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                   <TrendingUp size={15} color="#059669" />
                   <span>2. Ngày mục tiêu dự báo số dư</span>
                 </div>
-                <div style={{ marginBottom: '8px' }}>
+                <div>
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Dự báo số dư đến ngày</label>
                   <input
                     type="date"
@@ -545,40 +428,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                     style={{ width: '100%', fontSize: '13px', padding: '6px 8px' }}
                   />
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setTargetPreset('next_10th')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Mùng 10 tháng sau (Lương)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetPreset('next_5th')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Mùng 5 (Hạn tiền nhà)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetPreset('next_7th')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Mùng 7 (Hạn tiền nhà)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetPreset('end_of_month')}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Cuối tháng
-                  </button>
-                </div>
               </div>
 
               {/* Expected Income */}
@@ -587,7 +436,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                   <DollarSign size={15} color="#059669" />
                   <span>3. Thu nhập dự kiến (Lương công ty)</span>
                 </div>
-                <div style={{ marginBottom: '8px' }}>
+                <div>
                   <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Số tiền VND nhận thêm trước ngày mục tiêu</label>
                   <input
                     type="number"
@@ -596,24 +445,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                     className="form-input"
                     style={{ width: '100%', fontSize: '13px', padding: '6px 8px', fontWeight: 600 }}
                   />
-                </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setExpectedIncome(20300000)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    Lương chuẩn DB: 20.300.000 đ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpectedIncome(0)}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    0 đ
-                  </button>
                 </div>
               </div>
             </div>
@@ -627,7 +458,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                 border: '1px solid rgba(79, 70, 229, 0.15)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Home size={16} color="var(--primary)" />
@@ -652,71 +483,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                     <span>Thêm khoản mới</span>
                   </button>
                 </div>
-              </div>
-
-              {/* Quick Preset Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Thêm nhanh:</span>
-
-                {rentItem && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(79, 70, 229, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--primary)' }}>Tiền nhà (7tr) hạn:</span>
-                    <button
-                      type="button"
-                      onClick={() => setRentDay(5)}
-                      className="btn btn-sm"
-                      style={{
-                        fontSize: '11px',
-                        padding: '2px 6px',
-                        background: new Date(rentItem.dueDate).getDate() === 5 ? 'var(--primary)' : 'transparent',
-                        color: new Date(rentItem.dueDate).getDate() === 5 ? '#fff' : 'var(--text-secondary)',
-                      }}
-                    >
-                      Mùng 5
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRentDay(7)}
-                      className="btn btn-sm"
-                      style={{
-                        fontSize: '11px',
-                        padding: '2px 6px',
-                        background: new Date(rentItem.dueDate).getDate() === 7 ? 'var(--primary)' : 'transparent',
-                        color: new Date(rentItem.dueDate).getDate() === 7 ? '#fff' : 'var(--text-secondary)',
-                      }}
-                    >
-                      Mùng 7
-                    </button>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => addQuickPreset('gift_20_10')}
-                  className="btn btn-secondary btn-sm"
-                  style={{
-                    fontSize: '11px',
-                    padding: '3px 9px',
-                    borderColor: upcomingItems.some((i) => i.id === 'gift_20_10' && i.enabled) ? '#ec4899' : 'var(--border-subtle)',
-                    background: upcomingItems.some((i) => i.id === 'gift_20_10' && i.enabled) ? 'rgba(236, 72, 153, 0.08)' : undefined,
-                  }}
-                >
-                  🎁 Tiền quà 20/10 (1.000.000 đ)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => addQuickPreset('utility_bills')}
-                  className="btn btn-secondary btn-sm"
-                  style={{
-                    fontSize: '11px',
-                    padding: '3px 9px',
-                    borderColor: upcomingItems.some((i) => i.id === 'utility_bills' && i.enabled) ? '#f59e0b' : 'var(--border-subtle)',
-                    background: upcomingItems.some((i) => i.id === 'utility_bills' && i.enabled) ? 'rgba(245, 158, 11, 0.08)' : undefined,
-                  }}
-                >
-                  ⚡ Hóa đơn Điện/Nước/Mạng
-                </button>
               </div>
 
               {/* Items List */}
@@ -836,29 +602,11 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               <textarea
                 value={customQuestion}
                 onChange={(e) => setCustomQuestion(e.target.value)}
-                placeholder="Ví dụ: Liệu tôi có đủ tiền trả tiền nhà và mua quà 20/10 không? Mỗi ngày còn dư bao nhiêu tiền tiêu?"
+                placeholder="Ví dụ: Mỗi ngày còn dư bao nhiêu tiền tiêu an toàn? Cần lưu ý khoản chi nào sắp tới?"
                 className="form-input"
                 rows={2}
                 style={{ width: '100%', fontSize: '13px', resize: 'vertical' }}
               />
-              <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => setCustomQuestion('Tôi có đủ tiền trả tiền nhà và quà 20/10 mà vẫn đủ chi tiêu sinh hoạt không?')}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '11px', padding: '2px 8px' }}
-                >
-                  💡 Đủ tiền trả tiền nhà & quà 20/10 không?
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomQuestion('Hạn mức ăn uống và tiêu vặt an toàn mỗi ngày của tôi là bao nhiêu?')}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '11px', padding: '2px 8px' }}
-                >
-                  💡 Hạn mức ăn tiêu an toàn mỗi ngày?
-                </button>
-              </div>
             </div>
 
             {/* Error Message */}
@@ -926,7 +674,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                 <input
                   type="text"
                   required
-                  placeholder="VD: Quà 20/10, Đóng học, Tiệc cưới..."
+                  placeholder="VD: Tiền điện nước, Đóng học phí, Tiệc cưới..."
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
                   className="form-input"

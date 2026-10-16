@@ -8,7 +8,7 @@ interface AuthPageProps {
 }
 
 export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
-  const [email, setEmail] = useState('admin@cashflow.local');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,7 +186,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@cashflow.local"
+                placeholder="laingoc99@gmail.com"
                 style={{
                   width: '100%',
                   height: '46px',

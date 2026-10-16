@@ -269,30 +269,6 @@ export class AnalyticsService {
       });
     }
 
-    // 2. Add seasonal/one-off items requested by user (e.g. Quà 20/10)
-    suggestedUpcomingItems.push({
-      id: 'gift_20_10',
-      name: '🎁 Tiền quà 20/10 Phụ Nữ Việt Nam',
-      amount: 1000000,
-      type: 'EXPENSE',
-      dueDate: `${currentYear}-10-20`,
-      enabled: true,
-      category: 'Quà tặng',
-      isQuickPreset: true,
-    });
-
-    // 3. Add monthly utilities
-    suggestedUpcomingItems.push({
-      id: 'utility_bills',
-      name: '⚡ Hóa đơn Điện / Nước / Mạng',
-      amount: 1200000,
-      type: 'EXPENSE',
-      dueDate: `${currentYear}-${pad(nextMonth + 1)}-02`,
-      enabled: true,
-      category: 'Hóa đơn & Tiện ích',
-      isQuickPreset: true,
-    });
-
     return {
       account: {
         id: primaryAccount.id,
@@ -846,6 +822,17 @@ export class AnalyticsService {
       }
 
       const parsed = JSON.parse(setting.value);
+      if (parsed.upcoming?.items && Array.isArray(parsed.upcoming.items)) {
+        parsed.upcoming.items = parsed.upcoming.items.filter(
+          (item: any) =>
+            !item.id?.toLowerCase().includes('20_10') &&
+            !item.name?.toLowerCase().includes('20/10'),
+        );
+      }
+      if (parsed.customQuestion && parsed.customQuestion.includes('20/10')) {
+        parsed.customQuestion = '';
+      }
+
       return {
         ...parsed,
         savedAt: setting.updatedAt,

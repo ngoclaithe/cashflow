@@ -15,7 +15,7 @@ import { JwtStrategy } from './jwt.strategy';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET') || 'cashflow_jwt_secret_fallback',
         signOptions: {
-          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '7d') as any,
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '365d') as any,
         },
       }),
     }),

@@ -5,10 +5,11 @@ import { formatVND } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
 
 interface BudgetsPageProps {
+  onNavigate?: (tab: string) => void;
   refreshKey?: number;
 }
 
-export const BudgetsPage: React.FC<BudgetsPageProps> = ({ refreshKey }) => {
+export const BudgetsPage: React.FC<BudgetsPageProps> = ({ onNavigate, refreshKey }) => {
   const [budgets, setBudgets] = useState<BudgetStatus[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);

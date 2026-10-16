@@ -125,7 +125,7 @@ DỮ LIỆU THỰC TẾ TRONG KHOẢNG PHÂN TÍCH (${ctx.timeframe.analysisDays
 - Thu nhập dự kiến nhận thêm trước ngày mục tiêu: ${ctx.expectedIncome > 0 ? `${ctx.expectedIncome.toLocaleString('vi-VN')} VND` : '0 VND'}
 
 CÁC KHOẢN DỰ KIẾN SẮP TỚI NGƯỜI DÙNG ĐÃ CHỌN (UPCOMING PLANNED ITEMS):
-* Khoản chi dự kiến (Tiền nhà/phòng mùng 5 hoặc mùng 7, quà 20/10, hóa đơn, sinh nhật...): Tổng cộng: ${ctx.upcoming?.totalExpenses?.toLocaleString('vi-VN') || 0} VND
+* Khoản chi dự kiến (Định kỳ, hóa đơn, sự kiện sắp tới): Tổng cộng: ${ctx.upcoming?.totalExpenses?.toLocaleString('vi-VN') || 0} VND
 ${upcomingExpensesText}
 * Khoản thu dự kiến khác sắp tới: Tổng cộng: ${ctx.upcoming?.totalIncomes?.toLocaleString('vi-VN') || 0} VND
 ${upcomingIncomesText}
@@ -167,16 +167,16 @@ YÊU CẦU ĐẦU RA:
 Trả về duy nhất 1 JSON object hợp lệ (không kèm text ngoài JSON) theo cấu trúc:
 {
   "summary": "1-2 câu tóm tắt sắc sảo, đánh giá sức khỏe dòng tiền của giai đoạn đã chọn và áp lực thanh toán sắp tới",
-  "projectionAssessment": "Đánh giá chi tiết về số dư dự kiến đến ngày ${ctx.timeframe.targetDateFormatted}, đặc biệt lưu ý khả năng chi trả các khoản sắp tới như tiền nhà, quà 20/10 hoặc hóa đơn",
+  "projectionAssessment": "Đánh giá chi tiết về số dư dự kiến đến ngày ${ctx.timeframe.targetDateFormatted}, đặc biệt lưu ý khả năng chi trả các khoản cam kết sắp tới",
   "customAnswer": "${ctx.customQuestion ? 'Câu trả lời chi tiết, thực tế và sâu sắc cho câu hỏi của người dùng' : ''}",
   "keyObservations": [
     "Nhận xét sắc bén 1 về cơ cấu chi phí hoặc khoản chi bất thường",
-    "Nhận xét sắc bén 2 về tác động của các khoản sắp tới (tiền phòng, quà 20/10...) tới số dư thực tế",
+    "Nhận xét sắc bén 2 về tác động của các khoản sắp tới tới số dư thực tế",
     "Nhận xét sắc bén 3 về thói quen chi tiêu hàng ngày và tính thanh khoản"
   ],
   "recommendations": [
     "Khuyên 1: Hạn mức ngân sách tối đa nên giữ mỗi ngày cho ${ctx.timeframe.forecastDays} ngày tới sau khi để dành tiền cho các khoản sắp tới",
-    "Khuyên 2: Phương án chuẩn bị tiền cho ngày đến hạn chi tiêu lớn (ví dụ ngày 20/10 hoặc mùng 5/7)",
+    "Khuyên 2: Phương án chuẩn bị tiền cho ngày đến hạn chi tiêu lớn",
     "Khuyên 3: Kế hoạch phân bổ dòng tiền khi đến ngày mục tiêu ${ctx.timeframe.targetDateFormatted}"
   ],
   "verdict": "AN_TOAN" | "CAN_CHU_Y" | "NGUY_CO"
