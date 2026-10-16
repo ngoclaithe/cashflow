@@ -268,12 +268,6 @@ export class ApiClient {
     });
   }
 
-  async testTelegram() {
-    return this.request<any>('/integrations/telegram/test', {
-      method: 'POST',
-    });
-  }
-
   async calibrateBalance(balance: number, accountNumber = '1468651509999') {
     return this.request<any>('/integrations/calibrate-balance', {
       method: 'POST',
@@ -282,14 +276,19 @@ export class ApiClient {
   }
 
   // Analytics & Gemini AI Forecast
-  async getForecast(refresh = false) {
-    return this.request<any>(`/analytics/forecast${refresh ? '?refresh=true' : ''}`);
+  async getAnalyticsConfig() {
+    return this.request<any>('/analytics/config');
   }
 
-  async reanalyzeForecast() {
-    return this.request<any>('/analytics/reanalyze', {
+  async runAnalytics(options: any) {
+    return this.request<any>('/analytics/analyze', {
       method: 'POST',
+      body: JSON.stringify(options),
     });
+  }
+
+  async getForecast(refresh = false) {
+    return this.request<any>(`/analytics/forecast${refresh ? '?refresh=true' : ''}`);
   }
 }
 

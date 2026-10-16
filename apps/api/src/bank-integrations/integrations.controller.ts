@@ -13,7 +13,6 @@ import {
   Req,
 } from '@nestjs/common';
 import { SepayProvider } from './sepay/sepay.provider';
-import { GpmpayProvider } from './gpmpay/gpmpay.provider';
 import { SynchronizationService } from './synchronization/synchronization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -24,7 +23,6 @@ import Decimal from 'decimal.js';
 export class IntegrationsController {
   constructor(
     private readonly sepayProvider: SepayProvider,
-    private readonly gpmpayProvider: GpmpayProvider,
     private readonly syncService: SynchronizationService,
     private readonly prisma: PrismaService,
   ) {}
@@ -68,45 +66,6 @@ export class IntegrationsController {
     return { success: true };
   }
 
-  /**
-   * Public Webhook endpoint for GPM Pay.
-   */
-  @Post('gpmpay/webhook')
-  @HttpCode(HttpStatus.OK)
-  async handleGpmpayWebhook(
-    @Headers() headers: Record<string, string | string[] | undefined>,
-    @Body() payload: any,
-    @Req() req: any,
-  ) {
-    const rawBody = req.rawBody || JSON.stringify(payload);
-    const isValid = await this.gpmpayProvider.verifyWebhook(headers, payload, rawBody);
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid GPM Pay webhook signature');
-    }
-
-    const normalized = await this.gpmpayProvider.parseWebhook(payload);
-    if (normalized.length === 0) {
-      return { success: true, message: 'No actionable transactions in webhook payload' };
-    }
-
-    let targetUserId: string | null = null;
-    const matchingAccount = await this.prisma.account.findFirst({
-      where: { accountNumber: normalized[0].accountNumber },
-    });
-
-    if (matchingAccount) {
-      targetUserId = matchingAccount.userId;
-    } else {
-      const defaultUser = await this.prisma.user.findFirst();
-      if (defaultUser) targetUserId = defaultUser.id;
-    }
-
-    if (targetUserId) {
-      await this.syncService.ingestTransactions(targetUserId, 'GPMPAY', normalized);
-    }
-
-    return { success: true };
-  }
 
   /** Alias webhook for standard root path */
   @Post('webhook')
@@ -206,7 +165,7 @@ export class IntegrationsController {
           displayName: body.accountNumber ? `MB Bank (${body.accountNumber})` : 'MB Bank',
           bankName: 'MB Bank',
           accountNumber: body.accountNumber || 'MB_DEFAULT',
-          provider: 'GPMPAY',
+          provider: 'SEPAY',
           balance: new Decimal(body.balance || 0),
           currency: 'VND',
         },
@@ -216,7 +175,7 @@ export class IntegrationsController {
         where: { id: account.id },
         data: {
           balance: new Decimal(body.balance || 0),
-          provider: 'GPMPAY',
+          provider: 'SEPAY',
         },
       });
     }

@@ -1,19 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { GpmpayProvider } from '../bank-integrations/gpmpay/gpmpay.provider';
+import { SepayProvider } from '../bank-integrations/sepay/sepay.provider';
 import { SynchronizationService } from '../bank-integrations/synchronization/synchronization.service';
-import { TelegramService } from '../notifications/telegram.service';
-
 @Injectable()
 export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly gpmpayProvider: GpmpayProvider,
+    private readonly sepayProvider: SepayProvider,
     private readonly syncService: SynchronizationService,
-    private readonly telegramService: TelegramService,
   ) {}
 
   /**
@@ -47,17 +44,17 @@ export class ReconciliationService {
 
     for (const user of users) {
       try {
-        const syncPage = await this.gpmpayProvider.fetchTransactions({
+        const syncPage = await this.sepayProvider.fetchTransactions({
           startDate: windowStart,
           endDate: windowEnd,
-          perPage: 50,
+          perPage: 500,
         });
 
         totalFetched += syncPage.transactions.length;
 
         const result = await this.syncService.ingestTransactions(
           user.id,
-          'GPMPAY',
+          'SEPAY',
           syncPage.transactions,
         );
 
@@ -83,10 +80,6 @@ export class ReconciliationService {
         },
       },
     });
-
-    // Notify Telegram if configured
-    const message = `🔄 <b>Đối soát giao dịch hoàn tất</b>\n\n- Thời gian: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n- Khoảng đối soát: ${lookbackDays} ngày qua\n- Giao dịch quét: ${totalFetched}\n- Giao dịch mới nạp: ${totalInserted}\n- Giao dịch cập nhật: ${totalUpdated}\n- Trạng thái: ${log.status}`;
-    await this.telegramService.sendMessage(message);
 
     return {
       logId: log.id,

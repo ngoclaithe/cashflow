@@ -384,7 +384,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
             {recentTransactions.length === 0 ? (
               <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '24px' }}>
-                Chưa có giao dịch nào được ghi nhận. Bạn có thể bấm "Sync GPM Pay" hoặc thêm thủ công.
+                Chưa có giao dịch nào được ghi nhận. Bạn có thể bấm "Sync SePay" hoặc thêm thủ công.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

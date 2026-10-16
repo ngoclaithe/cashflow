@@ -213,12 +213,6 @@ class ApiClient {
     });
   }
 
-  async testTelegram() {
-    return this.request<any>('/integrations/telegram/test', {
-      method: 'POST',
-    });
-  }
-
   async calibrateBalance(balance: number, accountNumber = '1468651509999') {
     return this.request<any>('/integrations/calibrate-balance', {
       method: 'POST',

@@ -219,9 +219,8 @@ Expected backend variables may include:
 NODE_ENV=development
 PORT=<verified-backend-port>
 DATABASE_URL=<postgresql-connection-string>
-CORS_ORIGIN=<frontend-origin>
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-flash-latest
 ```
 
 Use only variables required by the implemented application. Add bank-provider credentials when the integration is implemented.

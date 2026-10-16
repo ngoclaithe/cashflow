@@ -11,7 +11,6 @@ import { BankIntegrationsModule } from './bank-integrations/bank-integrations.mo
 import { BudgetsModule } from './budgets/budgets.module';
 import { RecurringTransactionsModule } from './recurring-transactions/recurring-transactions.module';
 import { SavingsGoalsModule } from './savings-goals/savings-goals.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
@@ -34,7 +33,6 @@ import { AnalyticsModule } from './analytics/analytics.module';
     BudgetsModule,
     RecurringTransactionsModule,
     SavingsGoalsModule,
-    NotificationsModule,
     ReconciliationModule,
     DashboardModule,
     HealthModule,

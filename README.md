@@ -12,7 +12,7 @@
 - **ORM & Migrations**: Prisma ORM.
 - **Tích hợp ngân hàng**: SePay API v2 + Webhook thời gian thực.
 - **Đối soát định kỳ**: `@nestjs/schedule` (Tự động chạy 23:30 `Asia/Ho_Chi_Minh`).
-- **Thông báo**: Telegram Bot API (Ngưỡng ngân sách 70%, 90%, 100%, nhắc tiền nhà trước ngày 5, báo cáo đối soát).
+- **AI Phân tích & Báo cáo**: Google Gemini AI (Dự báo số dư, phân tích tiêu hao ròng, kịch bản dòng tiền, khoản dự kiến sắp tới).
 - **Quản lý tiến trình VPS**: PM2 (`ecosystem.config.js`).
 - **Reverse Proxy**: Nginx (Frontend: `cashflow.dosutech.site`, Backend: `api-cashflow.dosutech.site`).
 
@@ -38,8 +38,7 @@ cashflow/
 │   │       ├── budgets/               # Hạn mức chi tiêu & cảnh báo
 │   │       ├── recurring-transactions/# Khoản cố định (Tiền nhà, Lương)
 │   │       ├── savings-goals/         # Mục tiêu tích lũy & dự phóng
-│   │       ├── dashboard/             # Tổng hợp chỉ số tài chính
-│   │       ├── notifications/         # Telegram Bot service
+│   │       ├── analytics/             # Báo cáo & Phân tích Gemini AI
 │   │       ├── reconciliation/        # Đối soát 23:30 & lịch sử
 │   │       └── health/                # Health check /api/health
 │   └── web/                           # Frontend React + Vite

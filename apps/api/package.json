@@ -24,7 +24,6 @@
     "seed": "ts-node -r dotenv/config prisma/seed.ts dotenv_config_path=prisma/.env"
   },
   "dependencies": {
-    "@gpmpay/sdk": "^0.4.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^11.0.1",

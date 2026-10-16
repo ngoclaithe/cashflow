@@ -15,9 +15,33 @@ import {
   DollarSign,
   PieChart as PieChartIcon,
   HelpCircle,
+  Plus,
+  Trash2,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
+  MessageSquare,
+  Home,
+  Gift,
+  Zap,
+  Tag,
+  CreditCard,
 } from 'lucide-react';
 import { api } from '../../../shared/api/client';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
+
+interface UpcomingItem {
+  id: string;
+  name: string;
+  amount: number;
+  type: 'EXPENSE' | 'INCOME';
+  dueDate: string;
+  enabled: boolean;
+  category?: string;
+  isQuickPreset?: boolean;
+}
 
 interface AnalyticsPageProps {
   onNavigate?: (tab: string) => void;
@@ -25,77 +49,302 @@ interface AnalyticsPageProps {
 }
 
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refreshKey }) => {
+  // Config & Form State
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [targetDate, setTargetDate] = useState<string>('');
+  const [expectedIncome, setExpectedIncome] = useState<number>(20862750);
+  const [customQuestion, setCustomQuestion] = useState<string>('');
+  const [upcomingItems, setUpcomingItems] = useState<UpcomingItem[]>([]);
+  
+  // Custom new item input state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemAmount, setNewItemAmount] = useState<number | ''>('');
+  const [newItemDate, setNewItemDate] = useState('');
+  const [newItemType, setNewItemType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
+
+  // Analysis result state
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [data, setData] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [activeScenario, setActiveScenario] = useState<'baseline' | 'optimized' | 'conservative'>('baseline');
   const [error, setError] = useState<string | null>(null);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(true);
 
-  const fetchForecast = async (forceRefresh = false) => {
-    if (forceRefresh) {
-      setIsReanalyzing(true);
-    } else {
-      setLoading(true);
-    }
+  // 1. Load initial config from database without calling Gemini AI
+  const loadConfig = async () => {
+    setInitialLoading(true);
     setError(null);
-
     try {
-      const res = await api.getForecast(forceRefresh);
-      if (res) {
-        setData(res);
+      const cfg = await api.getAnalyticsConfig();
+      if (cfg) {
+        setAccountInfo(cfg.account);
+        setStartDate(cfg.defaults.startDate);
+        setEndDate(cfg.defaults.endDate);
+        setTargetDate(cfg.defaults.targetDate);
+        setExpectedIncome(cfg.defaults.expectedIncome);
+        setUpcomingItems(cfg.suggestedUpcomingItems || []);
       }
     } catch (err: any) {
-      console.error('Error fetching forecast:', err);
-      setError(err.message || 'Không thể tải báo cáo phân tích AI');
+      console.error('Error loading analytics config:', err);
+      // Fallback sensible defaults if network error
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+      setTargetDate(todayStr);
     } finally {
-      setLoading(false);
-      setIsReanalyzing(false);
+      setInitialLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchForecast();
+    loadConfig();
   }, [refreshKey]);
 
-  if (loading && !data) {
+  // 2. Trigger analysis with user-configured parameters
+  const handleRunAnalysis = async () => {
+    if (!startDate || !endDate || !targetDate) {
+      setError('Vui lòng chọn đầy đủ ngày bắt đầu, ngày kết thúc và ngày mục tiêu dự báo.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      const payload = {
+        startDate,
+        endDate,
+        targetDate,
+        expectedIncome: Number(expectedIncome) || 0,
+        customQuestion: customQuestion.trim() || undefined,
+        upcomingItems,
+      };
+
+      const res = await api.runAnalytics(payload);
+      if (res) {
+        setData(res);
+        // After first successful run, collapse settings slightly to focus on results
+        setIsSettingsExpanded(false);
+      }
+    } catch (err: any) {
+      console.error('Error running analytics:', err);
+      setError(err.message || 'Không thể tạo báo cáo phân tích AI. Vui lòng thử lại.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Toggle enable/disable upcoming item
+  const toggleUpcomingItem = (id: string) => {
+    setUpcomingItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, enabled: !item.enabled } : item)),
+    );
+  };
+
+  // Delete upcoming item
+  const deleteUpcomingItem = (id: string) => {
+    setUpcomingItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // Add custom item
+  const handleAddCustomItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItemName.trim() || !newItemAmount || !newItemDate) {
+      return;
+    }
+
+    const newItem: UpcomingItem = {
+      id: `custom_${Date.now()}`,
+      name: newItemName.trim(),
+      amount: Number(newItemAmount),
+      type: newItemType,
+      dueDate: newItemDate,
+      enabled: true,
+      isQuickPreset: false,
+    };
+
+    setUpcomingItems((prev) => [...prev, newItem]);
+    setNewItemName('');
+    setNewItemAmount('');
+    setNewItemDate('');
+    setShowAddModal(false);
+  };
+
+  // Quick Preset Adders
+  const addPreset = (presetType: 'rent_05' | 'rent_07' | 'gift_20_10' | 'utility_bills') => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const rentMonth = now.getDate() >= 10 ? currentMonth + 1 : currentMonth;
+
+    if (presetType === 'rent_05') {
+      const exists = upcomingItems.find((i) => i.id === 'rent_05');
+      if (exists) {
+        setUpcomingItems((prev) =>
+          prev.map((i) => (i.id === 'rent_05' ? { ...i, enabled: true } : i.id === 'rent_07' ? { ...i, enabled: false } : i)),
+        );
+      } else {
+        setUpcomingItems((prev) => [
+          ...prev,
+          {
+            id: 'rent_05',
+            name: '🏠 Tiền nhà / Tiền phòng (Mùng 5)',
+            amount: 4500000,
+            type: 'EXPENSE',
+            dueDate: `${currentYear}-${pad(rentMonth + 1)}-05`,
+            enabled: true,
+            isQuickPreset: true,
+          },
+        ]);
+      }
+    } else if (presetType === 'rent_07') {
+      const exists = upcomingItems.find((i) => i.id === 'rent_07');
+      if (exists) {
+        setUpcomingItems((prev) =>
+          prev.map((i) => (i.id === 'rent_07' ? { ...i, enabled: true } : i.id === 'rent_05' ? { ...i, enabled: false } : i)),
+        );
+      } else {
+        setUpcomingItems((prev) => [
+          ...prev,
+          {
+            id: 'rent_07',
+            name: '🏠 Tiền nhà / Tiền phòng (Mùng 7)',
+            amount: 4500000,
+            type: 'EXPENSE',
+            dueDate: `${currentYear}-${pad(rentMonth + 1)}-07`,
+            enabled: true,
+            isQuickPreset: true,
+          },
+        ]);
+      }
+    } else if (presetType === 'gift_20_10') {
+      const exists = upcomingItems.find((i) => i.id === 'gift_20_10');
+      if (exists) {
+        setUpcomingItems((prev) =>
+          prev.map((i) => (i.id === 'gift_20_10' ? { ...i, enabled: true } : i)),
+        );
+      } else {
+        setUpcomingItems((prev) => [
+          ...prev,
+          {
+            id: 'gift_20_10',
+            name: '🎁 Tiền quà 20/10 Phụ Nữ Việt Nam',
+            amount: 1000000,
+            type: 'EXPENSE',
+            dueDate: `${currentYear}-10-20`,
+            enabled: true,
+            isQuickPreset: true,
+          },
+        ]);
+      }
+    } else if (presetType === 'utility_bills') {
+      const exists = upcomingItems.find((i) => i.id === 'utility_bills');
+      if (exists) {
+        setUpcomingItems((prev) =>
+          prev.map((i) => (i.id === 'utility_bills' ? { ...i, enabled: true } : i)),
+        );
+      } else {
+        setUpcomingItems((prev) => [
+          ...prev,
+          {
+            id: 'utility_bills',
+            name: '⚡ Hóa đơn Điện / Nước / Mạng',
+            amount: 1200000,
+            type: 'EXPENSE',
+            dueDate: `${currentYear}-${pad(rentMonth + 1)}-02`,
+            enabled: true,
+            isQuickPreset: true,
+          },
+        ]);
+      }
+    }
+  };
+
+  // Quick Date Setters
+  const setRangePreset = (type: 'since_10th' | 'last_7_days' | 'this_month' | 'last_30_days') => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    const endStr = toIso(now);
+    setEndDate(endStr);
+
+    if (type === 'since_10th') {
+      const startD = new Date(now.getFullYear(), now.getMonth(), 10);
+      setStartDate(toIso(startD));
+    } else if (type === 'last_7_days') {
+      const startD = new Date(now);
+      startD.setDate(startD.getDate() - 7);
+      setStartDate(toIso(startD));
+    } else if (type === 'this_month') {
+      const startD = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(toIso(startD));
+    } else if (type === 'last_30_days') {
+      const startD = new Date(now);
+      startD.setDate(startD.getDate() - 30);
+      setStartDate(toIso(startD));
+    }
+  };
+
+  const setTargetPreset = (type: 'next_10th' | 'next_5th' | 'next_7th' | 'end_of_month' | 'plus_15_days') => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (type === 'next_10th') {
+      const nextMonth = now.getDate() >= 10 ? now.getMonth() + 1 : now.getMonth();
+      const targetD = new Date(now.getFullYear(), nextMonth, 10);
+      setTargetDate(toIso(targetD));
+    } else if (type === 'next_5th') {
+      const nextMonth = now.getDate() >= 5 ? now.getMonth() + 1 : now.getMonth();
+      const targetD = new Date(now.getFullYear(), nextMonth, 5);
+      setTargetDate(toIso(targetD));
+    } else if (type === 'next_7th') {
+      const nextMonth = now.getDate() >= 7 ? now.getMonth() + 1 : now.getMonth();
+      const targetD = new Date(now.getFullYear(), nextMonth, 7);
+      setTargetDate(toIso(targetD));
+    } else if (type === 'end_of_month') {
+      const targetD = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setTargetDate(toIso(targetD));
+    } else if (type === 'plus_15_days') {
+      const targetD = new Date(now);
+      targetD.setDate(targetD.getDate() + 15);
+      setTargetDate(toIso(targetD));
+    }
+  };
+
+  // Calculate live upcoming totals before targetDate
+  const targetDateObj = targetDate ? new Date(targetDate) : null;
+  if (targetDateObj) targetDateObj.setHours(23, 59, 59, 999);
+
+  const activeUpcomingExpenses = upcomingItems
+    .filter((i) => i.enabled && i.type === 'EXPENSE' && (!targetDateObj || new Date(i.dueDate) <= targetDateObj))
+    .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+  const activeUpcomingIncomes = upcomingItems
+    .filter((i) => i.enabled && i.type === 'INCOME' && (!targetDateObj || new Date(i.dueDate) <= targetDateObj))
+    .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+  if (initialLoading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px', gap: '16px' }}>
-        <div style={{ position: 'relative' }}>
-          <RefreshCw size={36} className="spin" color="var(--primary)" />
-          <Sparkles size={18} color="#f59e0b" style={{ position: 'absolute', top: -4, right: -4 }} />
-        </div>
-        <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-          Đang tổng hợp dữ liệu giao dịch & Gọi Gemini AI phân tích...
-        </div>
-        <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Đang tính toán tốc độ tiêu hao ròng và lập 3 kịch bản dự báo đến mùng 10 tháng sau
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '350px', gap: '14px' }}>
+        <RefreshCw size={32} className="spin" color="var(--primary)" />
+        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Đang tải thông số tài chính & đề xuất các mốc sắp tới...
         </div>
       </div>
     );
   }
-
-  if (error && !data) {
-    return (
-      <div className="glass-card" style={{ padding: '32px', textAlign: 'center', maxWidth: '500px', margin: '40px auto' }}>
-        <AlertTriangle size={40} color="#ef4444" style={{ margin: '0 auto 12px' }} />
-        <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Lỗi tải báo cáo dự báo</h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '18px' }}>{error}</p>
-        <button onClick={() => fetchForecast(true)} className="btn btn-primary" style={{ margin: '0 auto' }}>
-          <RefreshCw size={14} />
-          <span>Thử lại</span>
-        </button>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  const { account, cycle, stats, categories, anomalies, historicalSalary, projections, aiAnalysis } = data;
-  const currentScenario = projections[activeScenario];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
-      {/* 1. Header Banner */}
+      {/* 1. Header Card */}
       <div
         className="glass-card"
         style={{
@@ -142,473 +391,1041 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               >
                 Google Gemini
               </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  background: aiAnalysis.verdict === 'AN_TOAN' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                  color: aiAnalysis.verdict === 'AN_TOAN' ? '#059669' : '#d97706',
-                }}
-              >
-                {aiAnalysis.verdict === 'AN_TOAN' ? '● Dòng tiền an toàn' : '● Cần chú ý chi tiêu'}
-              </span>
             </div>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
-              Chu kỳ lương: <b>{cycle.startDateFormatted}</b> → <b>{cycle.targetDateFormatted}</b> • Đã qua {cycle.daysElapsed} ngày • Còn lại <b>{cycle.daysRemaining} ngày</b>
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => fetchForecast(true)}
-          disabled={isReanalyzing}
-          className="btn btn-secondary btn-sm"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 14px',
-            borderRadius: '9px',
-            fontSize: '13px',
-            fontWeight: 600,
-          }}
-          title="Yêu cầu Gemini phân tích lại với dữ liệu mới nhất"
-        >
-          <RefreshCw size={14} className={isReanalyzing ? 'spin' : ''} />
-          <span>{isReanalyzing ? 'Đang phân tích...' : 'Phân tích lại AI'}</span>
-        </button>
-      </div>
-
-      {/* 2. Top Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-        {/* Card 1: Số dư hiện tại */}
-        <div className="glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Số dư thực tế hiện tại</span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(79, 70, 229, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Wallet size={16} color="#4f46e5" />
-            </div>
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {formatVND(account.balance)}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span>{account.displayName} ({account.accountNumber})</span>
-          </div>
-        </div>
-
-        {/* Card 2: Tiến độ chu kỳ lương */}
-        <div className="glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Tiến độ kỳ lương</span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar size={16} color="#10b981" />
-            </div>
-          </div>
-          <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Còn {cycle.daysRemaining} ngày <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>/ {cycle.totalDays} ngày</span>
-          </div>
-          {/* Progress bar */}
-          <div style={{ width: '100%', height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
-            <div style={{ width: `${cycle.progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #4f46e5)', borderRadius: '3px' }} />
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Đã trôi qua {cycle.daysElapsed} ngày ({cycle.progressPercent}%)</span>
-            <span>Đến ngày {cycle.targetDateFormatted}</span>
-          </div>
-        </div>
-
-        {/* Card 3: Tốc độ hao hụt ròng */}
-        <div className="glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Tiêu hao ròng (Net Burn)</span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Flame size={16} color="#ef4444" />
-            </div>
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: '#ef4444' }}>
-            -{formatVND(stats.dailyNetBurnAvg)}<span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>/ngày</span>
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Chi {formatVND(stats.totalExpense)} • Thu lại {formatVND(stats.totalIncome)} ({stats.txCount} GD)
-          </div>
-        </div>
-
-        {/* Card 4: Hạn mức chi tiêu an toàn hàng ngày */}
-        <div className="glass-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Hạn mức chi an toàn / ngày</span>
-            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShieldCheck size={16} color="#f59e0b" />
-            </div>
-          </div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: '#059669' }}>
-            {formatVND(stats.safeDailySpendingAllowance)}<span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>/ngày</span>
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Chi tiêu dưới mức này sẽ không bao giờ cạn tiền
-          </div>
-        </div>
-      </div>
-
-      {/* 3. GEMINI AI INSIGHTS BOX */}
-      <div
-        className="glass-card"
-        style={{
-          padding: '22px 24px',
-          borderLeft: '4px solid #7c3aed',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={16} color="#fff" />
-            </div>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>
-              Đánh giá chuyên sâu từ Cố vấn Tài chính AI
-            </h3>
-          </div>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '3px 8px', borderRadius: '6px' }}>
-            Model: {aiAnalysis.modelUsed}
-          </span>
-        </div>
-
-        {/* AI Summary */}
-        <div
-          style={{
-            fontSize: '14px',
-            lineHeight: 1.6,
-            color: 'var(--text-primary)',
-            background: 'rgba(124, 58, 237, 0.04)',
-            padding: '14px 16px',
-            borderRadius: '10px',
-            border: '1px solid rgba(124, 58, 237, 0.12)',
-          }}
-        >
-          {aiAnalysis.summary}
-        </div>
-
-        {/* Projection Assessment */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ArrowRight size={14} />
-            <span>Đánh giá số dư dự báo đến ngày {cycle.targetDateFormatted}:</span>
-          </div>
-          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, paddingLeft: '20px' }}>
-            {aiAnalysis.projectionAssessment}
-          </div>
-        </div>
-
-        {/* Key Observations & Recommendations 2-Columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', marginTop: '4px' }}>
-          {/* Key Observations */}
-          <div style={{ background: 'var(--bg-input)', padding: '14px 16px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Info size={14} color="#6366f1" />
-              <span>Điểm quan sát đáng chú ý</span>
-            </div>
-            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              {aiAnalysis.keyObservations.map((obs: string, idx: number) => (
-                <li key={idx} style={{ marginBottom: '6px' }}>{obs}</li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Recommendations */}
-          <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', padding: '14px 16px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle2 size={14} color="#10b981" />
-              <span>Khuyến nghị hành động tối ưu số dư</span>
-            </div>
-            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              {aiAnalysis.recommendations.map((rec: string, idx: number) => (
-                <li key={idx} style={{ marginBottom: '6px' }}>{rec}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. THREE SCENARIOS PROJECTION CARDS */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0 }}>
-              Ước lượng Số dư đến ngày mùng 10 tháng sau ({cycle.targetDateFormatted})
-            </h3>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-              So sánh 3 kịch bản chi tiêu trước và sau khi nhận lương tháng mới (~{formatVND(historicalSalary.amount)})
-            </p>
-          </div>
-
-          {/* Scenario Tab Pills */}
-          <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '3px', borderRadius: '8px', gap: '4px' }}>
-            {(['baseline', 'optimized', 'conservative'] as const).map((key) => {
-              const isActive = activeScenario === key;
-              const labels = {
-                baseline: 'Thực tế (Base)',
-                optimized: 'Tiết kiệm',
-                conservative: 'Thận trọng',
-              };
-              return (
-                <button
-                  key={key}
-                  onClick={() => setActiveScenario(key)}
-                  style={{
-                    border: 'none',
-                    background: isActive ? 'var(--primary)' : 'transparent',
-                    color: isActive ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 600 : 500,
-                    fontSize: '12px',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {labels[key]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Scenario Detailed Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '14px' }}>
-          {/* Card: Baseline */}
-          <div
-            onClick={() => setActiveScenario('baseline')}
-            className="glass-card"
-            style={{
-              padding: '18px 20px',
-              cursor: 'pointer',
-              border: activeScenario === 'baseline' ? '2px solid #4f46e5' : '1px solid var(--border-subtle)',
-              background: activeScenario === 'baseline' ? 'rgba(79, 70, 229, 0.03)' : 'var(--bg-card)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#4f46e5' }}>Kịch bản 1: Thực tế (Khả dĩ nhất)</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5' }}>
-                Đề xuất
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              {projections.baseline.description}
-            </div>
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Tiêu hao 25 ngày tới:</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>-{formatVND(projections.baseline.projectedExpense)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Số dư trước lương (10/11):</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#4f46e5' }}>
-                  {formatVND(projections.baseline.projectedBalanceBeforeSalary)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16, 185, 129, 0.06)', padding: '6px 10px', borderRadius: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>Sau khi nhận lương tháng mới:</span>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>
-                  ~{formatVND(projections.baseline.projectedBalanceAfterSalary)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Optimized */}
-          <div
-            onClick={() => setActiveScenario('optimized')}
-            className="glass-card"
-            style={{
-              padding: '18px 20px',
-              cursor: 'pointer',
-              border: activeScenario === 'optimized' ? '2px solid #10b981' : '1px solid var(--border-subtle)',
-              background: activeScenario === 'optimized' ? 'rgba(16, 185, 129, 0.03)' : 'var(--bg-card)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#059669' }}>Kịch bản 2: Tối ưu (Tiết kiệm)</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669' }}>
-                Tiết kiệm
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              {projections.optimized.description}
-            </div>
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Tiêu hao 25 ngày tới:</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>-{formatVND(projections.optimized.projectedExpense)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Số dư trước lương (10/11):</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#059669' }}>
-                  {formatVND(projections.optimized.projectedBalanceBeforeSalary)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16, 185, 129, 0.06)', padding: '6px 10px', borderRadius: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>Sau khi nhận lương tháng mới:</span>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>
-                  ~{formatVND(projections.optimized.projectedBalanceAfterSalary)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Conservative */}
-          <div
-            onClick={() => setActiveScenario('conservative')}
-            className="glass-card"
-            style={{
-              padding: '18px 20px',
-              cursor: 'pointer',
-              border: activeScenario === 'conservative' ? '2px solid #f59e0b' : '1px solid var(--border-subtle)',
-              background: activeScenario === 'conservative' ? 'rgba(245, 158, 11, 0.03)' : 'var(--bg-card)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#d97706' }}>Kịch bản 3: Thận trọng (Chi nhiều)</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', color: '#d97706' }}>
-                Dự phòng
-              </span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              {projections.conservative.description}
-            </div>
-            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Tiêu hao 25 ngày tới:</span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>-{formatVND(projections.conservative.projectedExpense)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Số dư trước lương (10/11):</span>
-                <span style={{ fontSize: '18px', fontWeight: 800, color: '#d97706' }}>
-                  {formatVND(projections.conservative.projectedBalanceBeforeSalary)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16, 185, 129, 0.06)', padding: '6px 10px', borderRadius: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#059669' }}>Sau khi nhận lương tháng mới:</span>
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#059669' }}>
-                  ~{formatVND(projections.conservative.projectedBalanceAfterSalary)}
-                </span>
-              </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Tùy chỉnh khoảng thời gian, thêm các khoản dự kiến (tiền nhà, quà 20/10...) và dự báo số dư chính xác
             </div>
           </div>
         </div>
-      </div>
 
-      {/* 5. CATEGORIES BREAKDOWN & ANOMALIES SECTION */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
-        {/* Categories Bar Chart */}
-        <div className="glass-card" style={{ padding: '20px 22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <PieChartIcon size={16} color="#4f46e5" />
-              <span>Cơ cấu chi tiêu từ ngày {cycle.startDateFormatted}</span>
-            </h3>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Tổng chi: {formatVND(stats.totalExpense)}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {categories.map((c: any) => (
-              <div key={c.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', marginBottom: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: c.color }} />
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({c.count} GD)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{formatVND(c.amount)}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '32px', textAlign: 'right' }}>{c.percent}%</span>
-                  </div>
-                </div>
-                <div style={{ width: '100%', height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${c.percent}%`, height: '100%', background: c.color, borderRadius: '3px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Anomalies & Key Outflows */}
-        <div className="glass-card" style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={16} color="#f59e0b" />
-              <span>Giao dịch phát sinh lớn cần theo dõi</span>
-            </h3>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Từ 500.000 đ</span>
-          </div>
-
-          {anomalies.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)', fontSize: '13px' }}>
-              Không có giao dịch đột xuất bất thường trong kỳ này.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {anomalies.map((a: any) => (
-                <div
-                  key={a.id}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '8px',
-                    background: 'var(--bg-input)',
-                    border: '1px solid var(--border-subtle)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '10px',
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {a.description}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
-                      <span>Ngày {a.date}</span>
-                      <span>•</span>
-                      <span style={{ color: '#4f46e5', fontWeight: 600 }}>{a.categoryName}</span>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#ef4444', flexShrink: 0 }}>
-                    -{formatVND(a.amount)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Salary Information Note */}
+        {accountInfo && (
           <div
             style={{
-              marginTop: 'auto',
-              padding: '12px 14px',
-              borderRadius: '8px',
-              background: 'rgba(79, 70, 229, 0.05)',
-              border: '1px solid rgba(79, 70, 229, 0.15)',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '12px',
+              background: 'rgba(255, 255, 255, 0.85)',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              border: '1px solid var(--border-subtle)',
             }}
           >
-            <DollarSign size={20} color="#4f46e5" style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <b>Lương định kỳ tháng:</b> ~{formatVND(historicalSalary.amount)} dự kiến sẽ cộng vào tài khoản đúng ngày <b>{cycle.targetDateFormatted}</b> từ công ty {historicalSalary.companyName}.
+            <Wallet size={18} color="var(--primary)" />
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {accountInfo.displayName} ({accountInfo.accountNumber})
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {formatVND(accountInfo.balance)}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* 2. Interactive Parameter Configuration Panel */}
+      <div className="glass-card" style={{ padding: '22px', border: '1px solid rgba(79, 70, 229, 0.25)' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: isSettingsExpanded ? '18px' : '0',
+            cursor: 'pointer',
+          }}
+          onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sliders size={18} color="var(--primary)" />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>
+              Bộ Thiết Lập Tham Số Phân Tích & Dự Báo
+            </h3>
+            {data && !isSettingsExpanded && (
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                (Từ {formatDateOnly(startDate)} đến {formatDateOnly(endDate)} → Dự báo đến {formatDateOnly(targetDate)})
+              </span>
+            )}
+          </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            {isSettingsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <span>{isSettingsExpanded ? 'Thu gọn thiết lập' : 'Mở rộng / Đổi tham số'}</span>
+          </button>
+        </div>
+
+        {isSettingsExpanded && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {/* Grid 1: Dates & Expected Salary */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+              {/* Range Analysis */}
+              <div style={{ background: 'var(--bg-main)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={15} color="var(--primary)" />
+                  <span>1. Dữ liệu thực tế phân tích (Lịch sử)</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Từ ngày</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="form-input"
+                      style={{ width: '100%', fontSize: '13px', padding: '6px 8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Đến ngày</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="form-input"
+                      style={{ width: '100%', fontSize: '13px', padding: '6px 8px' }}
+                    />
+                  </div>
+                </div>
+                {/* Presets */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRangePreset('since_10th')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Từ mùng 10 đến nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRangePreset('last_7_days')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    7 ngày qua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRangePreset('this_month')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Tháng này
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Forecast Date */}
+              <div style={{ background: 'var(--bg-main)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <TrendingUp size={15} color="#059669" />
+                  <span>2. Ngày mục tiêu dự báo số dư</span>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Dự báo số dư đến ngày</label>
+                  <input
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className="form-input"
+                    style={{ width: '100%', fontSize: '13px', padding: '6px 8px' }}
+                  />
+                </div>
+                {/* Presets */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setTargetPreset('next_10th')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Mùng 10 tháng sau
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetPreset('next_5th')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Mùng 5 (Tiền nhà)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetPreset('next_7th')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Mùng 7 (Tiền nhà)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetPreset('end_of_month')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Cuối tháng
+                  </button>
+                </div>
+              </div>
+
+              {/* Expected Income */}
+              <div style={{ background: 'var(--bg-main)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <DollarSign size={15} color="#059669" />
+                  <span>3. Thu nhập dự kiến nhận thêm (Lương/Thưởng)</span>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Số tiền VND nhận thêm trước ngày mục tiêu</label>
+                  <input
+                    type="number"
+                    value={expectedIncome}
+                    onChange={(e) => setExpectedIncome(Number(e.target.value))}
+                    className="form-input"
+                    style={{ width: '100%', fontSize: '13px', padding: '6px 8px', fontWeight: 600 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setExpectedIncome(20862750)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Lương chuẩn MB: 20.862.750 đ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpectedIncome(0)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Không có (0 đ)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Upcoming Planned Items (Khoản dự kiến sắp tới - Tiền nhà, quà 20/10, v.v.) */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.03) 0%, rgba(245, 158, 11, 0.03) 100%)',
+                padding: '16px',
+                borderRadius: '14px',
+                border: '1px solid rgba(79, 70, 229, 0.15)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Home size={16} color="var(--primary)" />
+                    <span>4. Các khoản dự kiến sắp tới (Tiền nhà, quà 20/10, hóa đơn...)</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    Tích chọn để tính vào số dư dự phóng. Hệ thống sẽ cảnh báo khả năng thanh toán và tính hạn mức ăn tiêu mỗi ngày sau khi đã để dành khoản này.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="badge badge-expense" style={{ fontSize: '12px', padding: '4px 10px' }}>
+                    Tổng chi sắp tới: {formatVND(activeUpcomingExpenses)}
+                  </span>
+                  {activeUpcomingIncomes > 0 && (
+                    <span className="badge badge-income" style={{ fontSize: '12px', padding: '4px 10px' }}>
+                      Tổng thu khác: +{formatVND(activeUpcomingIncomes)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={14} />
+                    <span>Thêm khoản mới</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>Gợi ý nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => addPreset('rent_05')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 9px',
+                    borderColor: upcomingItems.some((i) => i.id === 'rent_05' && i.enabled) ? 'var(--primary)' : 'var(--border-subtle)',
+                    background: upcomingItems.some((i) => i.id === 'rent_05' && i.enabled) ? 'rgba(79, 70, 229, 0.08)' : undefined,
+                  }}
+                >
+                  🏠 Tiền nhà mùng 5 (4.5tr)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addPreset('rent_07')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 9px',
+                    borderColor: upcomingItems.some((i) => i.id === 'rent_07' && i.enabled) ? 'var(--primary)' : 'var(--border-subtle)',
+                    background: upcomingItems.some((i) => i.id === 'rent_07' && i.enabled) ? 'rgba(79, 70, 229, 0.08)' : undefined,
+                  }}
+                >
+                  🏠 Tiền nhà mùng 7 (4.5tr)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addPreset('gift_20_10')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 9px',
+                    borderColor: upcomingItems.some((i) => i.id === 'gift_20_10' && i.enabled) ? '#ec4899' : 'var(--border-subtle)',
+                    background: upcomingItems.some((i) => i.id === 'gift_20_10' && i.enabled) ? 'rgba(236, 72, 153, 0.08)' : undefined,
+                  }}
+                >
+                  🎁 Quà 20/10 (1tr)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addPreset('utility_bills')}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 9px',
+                    borderColor: upcomingItems.some((i) => i.id === 'utility_bills' && i.enabled) ? '#f59e0b' : 'var(--border-subtle)',
+                    background: upcomingItems.some((i) => i.id === 'utility_bills' && i.enabled) ? 'rgba(245, 158, 11, 0.08)' : undefined,
+                  }}
+                >
+                  ⚡ Điện / Nước / Mạng (1.2tr)
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {upcomingItems.length === 0 ? (
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    Chưa có khoản dự kiến nào. Nhấp vào các gợi ý nhanh bên trên hoặc nút "+ Thêm khoản mới".
+                  </div>
+                ) : (
+                  upcomingItems.map((item) => {
+                    const isBeyondTarget = targetDateObj && new Date(item.dueDate) > targetDateObj;
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          background: item.enabled ? '#fff' : 'rgba(241, 245, 249, 0.6)',
+                          border: `1px solid ${item.enabled ? 'rgba(79, 70, 229, 0.25)' : 'var(--border-subtle)'}`,
+                          opacity: item.enabled ? 1 : 0.6,
+                          transition: 'all 0.15s ease',
+                          gap: '12px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div
+                          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1, minWidth: '220px' }}
+                          onClick={() => toggleUpcomingItem(item.id)}
+                        >
+                          {item.enabled ? (
+                            <CheckSquare size={18} color="var(--primary)" />
+                          ) : (
+                            <Square size={18} color="var(--text-muted)" />
+                          )}
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: item.enabled ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>Hạn đến: {formatDateOnly(item.dueDate)}</span>
+                              {isBeyondTarget && (
+                                <span style={{ color: '#d97706', fontWeight: 600 }}>
+                                  (Sau ngày mục tiêu {formatDateOnly(targetDate)} - không tính vào kỳ này)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span
+                            className={item.type === 'INCOME' ? 'badge badge-income' : 'badge badge-expense'}
+                            style={{ fontWeight: 700, fontSize: '12px' }}
+                          >
+                            {item.type === 'INCOME' ? '+' : '-'}{formatVND(item.amount)}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => deleteUpcomingItem(item.id)}
+                            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                            title="Xóa khoản này"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Section 5: Custom Prompt / Question for Gemini AI */}
+            <div style={{ background: 'var(--bg-main)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MessageSquare size={15} color="var(--primary)" />
+                <span>5. Câu hỏi / Yêu cầu riêng cho Cố vấn AI (Tùy chọn)</span>
+              </div>
+              <textarea
+                value={customQuestion}
+                onChange={(e) => setCustomQuestion(e.target.value)}
+                placeholder="Nhập câu hỏi bạn băn khoăn (ví dụ: Tôi có đủ tiền trả tiền nhà và mua quà 20/10 không? Còn dư bao nhiêu để ăn tiêu mỗi ngày?)"
+                className="form-input"
+                rows={2}
+                style={{ width: '100%', fontSize: '13px', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setCustomQuestion('Tôi có đủ tiền trả tiền nhà và quà 20/10 mà vẫn sống sót đến ngày nhận lương không?')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '11px', padding: '2px 8px' }}
+                >
+                  💡 Đủ tiền trả tiền nhà & quà 20/10 không?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomQuestion('Hạn mức ăn uống và tiêu vặt an toàn mỗi ngày của tôi là bao nhiêu?')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '11px', padding: '2px 8px' }}
+                >
+                  💡 Hạn mức ăn tiêu an toàn mỗi ngày?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomQuestion('Tư vấn phân bổ tiền khi nhận lương tháng tới?')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '11px', padding: '2px 8px' }}
+                >
+                  💡 Kế hoạch phân bổ lương tháng tới?
+                </button>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'var(--expense-bg)',
+                  border: '1px solid rgba(225, 29, 72, 0.25)',
+                  color: 'var(--expense)',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertTriangle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Main Action Button */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '6px' }}>
+              <button
+                type="button"
+                onClick={handleRunAnalysis}
+                disabled={isAnalyzing}
+                className="btn btn-primary"
+                style={{
+                  fontSize: '15px',
+                  padding: '12px 28px',
+                  borderRadius: '12px',
+                  minWidth: '280px',
+                  boxShadow: '0 4px 16px rgba(79, 70, 229, 0.35)',
+                }}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw size={18} className="spin" />
+                    <span>Đang gọi Gemini AI phân tích dòng tiền...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    <span>{data ? 'Cập nhật Phân tích & Dự báo AI' : 'Chạy Phân tích & Dự báo Dòng tiền AI'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Add Custom Upcoming Item Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="glass-card" style={{ maxWidth: '440px', width: '90%', padding: '24px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '14px', color: 'var(--text-primary)' }}>
+              Thêm khoản dự kiến sắp tới
+            </h3>
+            <form onSubmit={handleAddCustomItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label className="form-label">Tên khoản chi/thu (VD: Tiền nhà, Quà 20/10, Đóng học...)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nhập tên khoản..."
+                  value={newItemName}
+                  onChange={(e) => setNewItemName(e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label className="form-label">Loại</label>
+                  <select
+                    value={newItemType}
+                    onChange={(e: any) => setNewItemType(e.target.value)}
+                    className="form-select"
+                    style={{ width: '100%' }}
+                  >
+                    <option value="EXPENSE">Khoản chi (-)</option>
+                    <option value="INCOME">Khoản thu (+)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Số tiền (VND)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="VD: 4500000"
+                    value={newItemAmount}
+                    onChange={(e) => setNewItemAmount(e.target.value ? Number(e.target.value) : '')}
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Ngày đến hạn</label>
+                <input
+                  type="date"
+                  required
+                  value={newItemDate}
+                  onChange={(e) => setNewItemDate(e.target.value)}
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="btn btn-secondary"
+                >
+                  Hủy
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Thêm khoản
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Display Loading State when analysis is running */}
+      {isAnalyzing && (
+        <div className="glass-card" style={{ padding: '40px 20px', textAlign: 'center', border: '1px solid rgba(79, 70, 229, 0.3)' }}>
+          <div style={{ display: 'inline-block', position: 'relative', marginBottom: '14px' }}>
+            <RefreshCw size={36} className="spin" color="var(--primary)" />
+            <Sparkles size={18} color="#f59e0b" style={{ position: 'absolute', top: -4, right: -4 }} />
+          </div>
+          <h4 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Đang tổng hợp dữ liệu giao dịch & Gọi Gemini AI phân tích...
+          </h4>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '500px', margin: '0 auto' }}>
+            AI đang đối chiếu tốc độ tiêu hao ròng, trừ các khoản dự kiến (tiền phòng, quà 20/10, hóa đơn) và lập 3 kịch bản số dư đến ngày {formatDateOnly(targetDate)}.
+          </p>
+        </div>
+      )}
+
+      {/* 5. Render Full Analytics Results when Available */}
+      {data && !isAnalyzing && (
+        <>
+          {/* AI Executive Summary Card */}
+          <div
+            className="glass-card"
+            style={{
+              padding: '24px',
+              border:
+                data.aiAnalysis.verdict === 'AN_TOAN'
+                  ? '1px solid rgba(16, 185, 129, 0.3)'
+                  : data.aiAnalysis.verdict === 'CAN_CHU_Y'
+                  ? '1px solid rgba(245, 158, 11, 0.3)'
+                  : '1px solid rgba(239, 68, 68, 0.3)',
+              background:
+                data.aiAnalysis.verdict === 'AN_TOAN'
+                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(255, 255, 255, 0.95) 100%)'
+                  : 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(255, 255, 255, 0.95) 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    background:
+                      data.aiAnalysis.verdict === 'AN_TOAN'
+                        ? 'rgba(16, 185, 129, 0.15)'
+                        : data.aiAnalysis.verdict === 'CAN_CHU_Y'
+                        ? 'rgba(245, 158, 11, 0.15)'
+                        : 'rgba(239, 68, 68, 0.15)',
+                    color:
+                      data.aiAnalysis.verdict === 'AN_TOAN'
+                        ? '#059669'
+                        : data.aiAnalysis.verdict === 'CAN_CHU_Y'
+                        ? '#d97706'
+                        : '#dc2626',
+                  }}
+                >
+                  <ShieldCheck size={16} />
+                  <span>
+                    {data.aiAnalysis.verdict === 'AN_TOAN'
+                      ? 'DÒNG TIỀN AN TOÀN'
+                      : data.aiAnalysis.verdict === 'CAN_CHU_Y'
+                      ? 'CẦN KIỂM SOÁT CHI TIÊU'
+                      : 'NGUY CƠ THÂM HỤT SỐ DƯ'}
+                  </span>
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Model: {data.aiAnalysis.modelUsed}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Thời gian lập: {new Date(data.aiAnalysis.generatedAt).toLocaleTimeString('vi-VN')} {new Date(data.aiAnalysis.generatedAt).toLocaleDateString('vi-VN')}
+              </div>
+            </div>
+
+            <p style={{ fontSize: '15px', lineHeight: 1.6, color: 'var(--text-primary)', fontWeight: 600, marginBottom: '12px' }}>
+              {data.aiAnalysis.summary}
+            </p>
+
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: '10px',
+                background: 'rgba(79, 70, 229, 0.05)',
+                borderLeft: '4px solid #4f46e5',
+                fontSize: '14px',
+                lineHeight: 1.5,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <strong>Đánh giá số dư mục tiêu ({data.timeframe.targetDateFormatted}):</strong> {data.aiAnalysis.projectionAssessment}
+            </div>
+
+            {/* Custom Answer if user inquired */}
+            {data.aiAnalysis.customAnswer && (
+              <div
+                style={{
+                  marginTop: '14px',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(79, 70, 229, 0.05) 100%)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 800, color: '#d97706', marginBottom: '4px' }}>
+                  <MessageSquare size={15} />
+                  <span>Giải đáp câu hỏi của bạn: "{data.customQuestion}"</span>
+                </div>
+                <div style={{ fontSize: '14px', lineHeight: 1.5, color: 'var(--text-primary)', fontWeight: 500 }}>
+                  {data.aiAnalysis.customAnswer}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Key Metrics Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div className="glass-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Wallet size={15} color="var(--primary)" />
+                <span>Số dư hiện tại</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                {formatVND(data.account.balance)}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Tài khoản MB Bank chính
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Flame size={15} color="#e11d48" />
+                <span>Tiêu hao ròng thực tế</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#e11d48', marginTop: '4px' }}>
+                {formatVND(data.stats.dailyNetBurnAvg)} / ngày
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Tổng thâm hụt: {formatVND(data.stats.netBurn)} ({data.timeframe.analysisDays} ngày)
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Home size={15} color="#d97706" />
+                <span>Chi dự kiến sắp tới</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
+                {formatVND(data.upcoming?.totalExpenses || 0)}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Tiền phòng, quà 20/10, hóa đơn...
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={15} color="#059669" />
+                <span>Hạn mức ăn tiêu an toàn</span>
+              </div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
+                {formatVND(data.stats.safeDailySpendingAllowance)} / ngày
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Sau khi đã để dành tiền chi các khoản sắp tới
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Projection Scenarios with Tab Selector */}
+          <div className="glass-card" style={{ padding: '22px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  3 Kịch Bản Số Dư Dự Báo Đến Ngày {data.timeframe.targetDateFormatted}
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  Dự báo trong {data.timeframe.forecastDays} ngày tới (đã trừ {formatVND(data.upcoming?.totalExpenses || 0)} các khoản dự kiến)
+                </div>
+              </div>
+
+              {/* Scenario Toggle */}
+              <div style={{ display: 'flex', background: 'var(--bg-input)', padding: '3px', borderRadius: '10px', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveScenario('baseline')}
+                  className="btn btn-sm"
+                  style={{
+                    background: activeScenario === 'baseline' ? '#fff' : 'transparent',
+                    color: activeScenario === 'baseline' ? 'var(--primary)' : 'var(--text-secondary)',
+                    boxShadow: activeScenario === 'baseline' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  Cơ sở (Thực tế)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveScenario('optimized')}
+                  className="btn btn-sm"
+                  style={{
+                    background: activeScenario === 'optimized' ? '#fff' : 'transparent',
+                    color: activeScenario === 'optimized' ? '#059669' : 'var(--text-secondary)',
+                    boxShadow: activeScenario === 'optimized' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  Tối ưu (Tiết kiệm)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveScenario('conservative')}
+                  className="btn btn-sm"
+                  style={{
+                    background: activeScenario === 'conservative' ? '#fff' : 'transparent',
+                    color: activeScenario === 'conservative' ? '#d97706' : 'var(--text-secondary)',
+                    boxShadow: activeScenario === 'conservative' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  Thận trọng (Chi nhiều)
+                </button>
+              </div>
+            </div>
+
+            {/* Active Scenario Card Breakdown */}
+            {(() => {
+              const cur = data.projections[activeScenario];
+              return (
+                <div
+                  style={{
+                    padding: '20px',
+                    borderRadius: '14px',
+                    background:
+                      activeScenario === 'baseline'
+                        ? 'rgba(79, 70, 229, 0.04)'
+                        : activeScenario === 'optimized'
+                        ? 'rgba(5, 150, 105, 0.04)'
+                        : 'rgba(217, 119, 6, 0.04)',
+                    border: `1px solid ${
+                      activeScenario === 'baseline'
+                        ? 'rgba(79, 70, 229, 0.2)'
+                        : activeScenario === 'optimized'
+                        ? 'rgba(5, 150, 105, 0.2)'
+                        : 'rgba(217, 119, 6, 0.2)'
+                    }`,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                        {cur.label}
+                      </h4>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                        {cur.description}
+                      </p>
+                    </div>
+                    <span
+                      className={
+                        cur.status === 'EXCELLENT'
+                          ? 'badge badge-income'
+                          : cur.status === 'SAFE'
+                          ? 'badge badge-income'
+                          : cur.status === 'WARNING'
+                          ? 'badge badge-warning'
+                          : 'badge badge-expense'
+                      }
+                      style={{ fontSize: '12px', padding: '4px 10px' }}
+                    >
+                      {cur.status === 'EXCELLENT'
+                        ? 'RẤT TỐT'
+                        : cur.status === 'SAFE'
+                        ? 'AN TOÀN'
+                        : cur.status === 'WARNING'
+                        ? 'CẢNH BÁO'
+                        : 'NGUY CƠ'}
+                    </span>
+                  </div>
+
+                  {/* Waterfall Flow */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '14px' }}>
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Số dư ban đầu</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
+                        {formatVND(data.account.balance)}
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '11px', color: '#e11d48' }}>(-) Chi sinh hoạt {data.timeframe.forecastDays} ngày</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#e11d48', marginTop: '2px' }}>
+                        -{formatVND(cur.regularProjectedExpense)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>~{formatVND(cur.dailyBurn)}/ngày</div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '11px', color: '#d97706' }}>(-) Các khoản dự kiến sắp tới</div>
+                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
+                        -{formatVND(cur.upcomingExpense)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tiền phòng, quà 20/10...</div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '2px solid rgba(79, 70, 229, 0.4)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 700 }}>(=) Số dư trước lương/thu nhập</div>
+                      <div style={{ fontSize: '17px', fontWeight: 900, color: cur.projectedBalanceBeforeSalary >= 0 ? 'var(--primary)' : '#e11d48', marginTop: '2px' }}>
+                        {cur.projectedBalanceBeforeSalaryFormatted}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Trước ngày nhận lương</div>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>(+) Sau nhận lương/thu nhập</div>
+                      <div style={{ fontSize: '17px', fontWeight: 800, color: '#059669', marginTop: '2px' }}>
+                        {cur.projectedBalanceAfterSalaryFormatted}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Đã cộng {formatVND(data.expectedIncome)}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* AI Observations & Recommendations Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+            {/* Key Observations */}
+            <div className="glass-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TrendingDown size={16} color="var(--primary)" />
+                <span>Nhận Xét Trọng Yếu Của AI</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {data.aiAnalysis.keyObservations?.map((obs: string, idx: number) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: 'rgba(79, 70, 229, 0.1)',
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        marginTop: '2px',
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <span>{obs}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            <div className="glass-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={16} color="#059669" />
+                <span>Khuyến Nghị Hành Động Thiết Thực</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {data.aiAnalysis.recommendations?.map((rec: string, idx: number) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '8px',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <CheckCircle2 size={16} color="#059669" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>{rec}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown & Anomalies */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+            {/* Category Breakdown */}
+            <div className="glass-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <PieChartIcon size={16} color="var(--primary)" />
+                <span>Cơ Cấu Chi Tiêu Trong Kỳ ({data.timeframe.analysisDays} ngày)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {data.categories.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Không có giao dịch chi tiêu trong kỳ này.</div>
+                ) : (
+                  data.categories.map((c: any) => (
+                    <div key={c.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600, marginBottom: '3px' }}>
+                        <span style={{ color: 'var(--text-primary)' }}>{c.name}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          {formatVND(c.amount)} ({c.percent}%)
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '6px', background: 'var(--bg-input)', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${c.percent}%`,
+                            height: '100%',
+                            background: c.color || 'var(--primary)',
+                            borderRadius: '3px',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Past Anomalies */}
+            <div className="glass-card" style={{ padding: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={16} color="#d97706" />
+                <span>Khoản Chi Lớn Đã Chi Trong Kỳ (≥ 500k)</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                {data.anomalies.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Không có khoản chi lớn đột xuất trong kỳ phân tích.</div>
+                ) : (
+                  data.anomalies.map((a: any) => (
+                    <div
+                      key={a.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-input)',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.description}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {formatDateOnly(a.date)} • {a.categoryName}
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#e11d48' }}>
+                        -{formatVND(a.amount)}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
