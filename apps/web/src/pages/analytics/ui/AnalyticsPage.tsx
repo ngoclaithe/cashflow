@@ -30,16 +30,7 @@ import {
 import { api } from '../../../shared/api/client';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
 
-interface UpcomingItem {
-  id: string;
-  name: string;
-  amount: number;
-  type: 'EXPENSE' | 'INCOME';
-  dueDate: string;
-  enabled: boolean;
-  category?: string;
-  isQuickPreset?: boolean;
-}
+import { ForecastResponse, UpcomingItem, AnalyticsConfig } from '../../../shared/types';
 
 interface AnalyticsPageProps {
   onNavigate?: (tab: string) => void;
@@ -49,7 +40,7 @@ interface AnalyticsPageProps {
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refreshKey }) => {
   // Config & Form State
   const [initialLoading, setInitialLoading] = useState(true);
-  const [accountInfo, setAccountInfo] = useState<any>(null);
+  const [accountInfo, setAccountInfo] = useState<AnalyticsConfig['account'] | null>(null);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [targetDate, setTargetDate] = useState<string>('');
@@ -58,7 +49,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
   const [upcomingItems, setUpcomingItems] = useState<UpcomingItem[]>([]);
 
   // Persistent Analysis Result State (Loaded directly from PostgreSQL DB)
-  const [data, setData] = useState<any | null>(null);
+  const [data, setData] = useState<ForecastResponse | null>(null);
   const [cachedTime, setCachedTime] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeScenario, setActiveScenario] = useState<'baseline' | 'optimized' | 'conservative'>('baseline');
@@ -851,12 +842,16 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                   </span>
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Model: {data.aiAnalysis.modelUsed}
+                  Model: {data.aiAnalysis.model || 'Gemini 3.6 Flash'}
                 </span>
               </div>
 
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Thời gian lập: {new Date(data.aiAnalysis.generatedAt).toLocaleTimeString('vi-VN')} {new Date(data.aiAnalysis.generatedAt).toLocaleDateString('vi-VN')}
+                {data.aiAnalysis.generatedAt ? (
+                  <span>
+                    Thời gian lập: {new Date(data.aiAnalysis.generatedAt).toLocaleTimeString('vi-VN')} {new Date(data.aiAnalysis.generatedAt).toLocaleDateString('vi-VN')}
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -905,37 +900,37 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
             <div className="glass-card" style={{ padding: '16px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Số dư hiện tại</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-                {data.currentAccount.balanceFormatted}
+                {formatVND(data.account?.balance ?? accountInfo?.balance ?? 0)}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Tài khoản {data.currentAccount.bankName}
+                Tài khoản {data.account?.displayName || accountInfo?.displayName || 'MB Bank'}
               </div>
             </div>
 
             <div className="glass-card" style={{ padding: '16px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Tốc độ chi tiêu thực tế</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--expense)', marginTop: '4px' }}>
-                {data.spendingVelocity.dailyBurnRateFormatted}/ngày
+                {formatVND(data.stats?.dailyExpenseAvg ?? 0)}/ngày
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Trung bình {data.timeframe.historicalDaysCount} ngày qua
+                Trung bình {data.timeframe?.analysisDays ?? 7} ngày qua
               </div>
             </div>
 
             <div className="glass-card" style={{ padding: '16px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Số ngày đến mục tiêu</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                {data.timeframe.daysUntilTarget} ngày
+                {data.timeframe?.forecastDays ?? 0} ngày
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Đến {data.timeframe.targetDateFormatted}
+                Đến {data.timeframe?.targetDateFormatted || formatDateOnly(targetDate)}
               </div>
             </div>
 
             <div className="glass-card" style={{ padding: '16px' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Hạn mức tiêu an toàn AI</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
-                {formatVND(data.aiAnalysis.safeDailySpendingLimit)}/ngày
+                {formatVND(data.stats?.safeDailySpendingAllowance ?? 0)}/ngày
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                 Để bảo toàn số dư cam kết
@@ -948,7 +943,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  3 Kịch Bản Số Dư Đến {data.timeframe.targetDateFormatted}
+                  3 Kịch Bản Số Dư Đến {data.timeframe?.targetDateFormatted || formatDateOnly(targetDate)}
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
                   Dự báo theo tốc độ chi tiêu thực tế, các khoản cam kết sắp tới & lương
@@ -998,7 +993,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
 
             {/* Active Scenario Card Detail */}
             {(() => {
-              const cur = data.scenarios[activeScenario];
+              const cur = data.projections?.[activeScenario];
               if (!cur) return null;
               const isNegative = cur.projectedBalanceBeforeSalary < 0;
               return (
@@ -1015,7 +1010,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {cur.name}
+                      {cur.label}
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{cur.description}</div>
                   </div>
@@ -1024,24 +1019,24 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                     <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Tốc độ chi tiêu giả định</div>
                       <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '2px' }}>
-                        {cur.assumedDailyBurnFormatted}/ngày
+                        {formatVND(cur.dailyBurn)}/ngày
                       </div>
                     </div>
 
                     <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Tổng chi tiêu thường xuyên</div>
                       <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--expense)', marginTop: '2px' }}>
-                        -{cur.totalProjectedDailyExpensesFormatted}
+                        -{formatVND(cur.regularProjectedExpense)}
                       </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Cho {data.timeframe.daysUntilTarget} ngày tới</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Cho {data.timeframe?.forecastDays ?? 0} ngày tới</div>
                     </div>
 
                     <div style={{ background: '#fff', padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Các khoản cam kết sắp tới</div>
                       <div style={{ fontSize: '16px', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
-                        -{cur.upcomingItemsTotalFormatted}
+                        -{formatVND(cur.upcomingExpense)}
                       </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Tiền nhà, hóa đơn, quà...</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Định kỳ & cam kết đã chọn</div>
                     </div>
 
                     <div

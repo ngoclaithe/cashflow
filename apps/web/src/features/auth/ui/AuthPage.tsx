@@ -81,65 +81,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
         }}
       >
         {/* Header Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <img
+            src="/logo.png"
+            alt="Cashflow"
             style={{
-              width: '56px',
-              height: '56px',
+              width: '64px',
+              height: '64px',
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #059669 100%)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               boxShadow: '0 8px 24px rgba(79, 70, 229, 0.35)',
-              marginBottom: '16px',
+              marginBottom: '12px',
+              objectFit: 'cover',
+              display: 'inline-block',
             }}
-          >
-            <Wallet size={28} color="#ffffff" />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '6px' }}>
-            <h1
-              style={{
-                fontSize: '26px',
-                fontWeight: 900,
-                letterSpacing: '-0.03em',
-                color: '#0f172a',
-                margin: 0,
-              }}
-            >
-              Cashflow<span style={{ color: '#4f46e5' }}>.</span>
-            </h1>
-          </div>
-
-          <p
+          />
+          <h1
             style={{
-              fontSize: '13.5px',
-              color: '#64748b',
-              margin: '0 0 12px',
-              fontWeight: 500,
+              fontSize: '28px',
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              color: '#0f172a',
+              margin: 0,
+              fontFamily: 'var(--font-sans)',
             }}
           >
-            Hệ thống Quản trị Dòng tiền Cá nhân & MB Bank
-          </p>
-
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '3px 10px',
-              borderRadius: '20px',
-              background: 'rgba(79, 70, 229, 0.08)',
-              border: '1px solid rgba(79, 70, 229, 0.18)',
-              fontSize: '11px',
-              fontWeight: 700,
-              color: '#4f46e5',
-            }}
-          >
-            <ShieldCheck size={13} />
-            <span>Hệ thống Riêng tư Cá nhân (Private OS)</span>
-          </div>
+            Cashflow<span style={{ color: '#4f46e5' }}>.</span>
+          </h1>
         </div>
 
         {/* Error Alert */}
@@ -168,9 +135,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
               style={{
                 display: 'block',
                 fontSize: '12.5px',
-                fontWeight: 700,
+                fontWeight: 600,
                 color: '#334155',
                 marginBottom: '6px',
+                fontFamily: 'var(--font-sans)',
               }}
             >
               Email tài khoản
@@ -184,6 +152,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
               <input
                 type="email"
                 required
+                autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="laingoc99@gmail.com"
@@ -193,7 +162,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
                   paddingLeft: '42px',
                   paddingRight: '14px',
                   fontSize: '14px',
-                  fontWeight: 600,
+                  fontWeight: 500,
+                  fontFamily: 'var(--font-sans)',
                   color: '#0f172a',
                   background: '#f8fafc',
                   border: '1.5px solid #e2e8f0',
@@ -221,9 +191,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
               style={{
                 display: 'block',
                 fontSize: '12.5px',
-                fontWeight: 700,
+                fontWeight: 600,
                 color: '#334155',
                 marginBottom: '6px',
+                fontFamily: 'var(--font-sans)',
               }}
             >
               Mật khẩu bảo mật
@@ -237,6 +208,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
@@ -246,6 +218,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
                   paddingLeft: '42px',
                   paddingRight: '44px',
                   fontSize: '14px',
+                  fontFamily: 'var(--font-sans)',
                   color: '#0f172a',
                   background: '#f8fafc',
                   border: '1.5px solid #e2e8f0',
@@ -295,7 +268,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
             style={{
               height: '48px',
               fontSize: '15px',
-              fontWeight: 800,
+              fontWeight: 700,
+              fontFamily: 'var(--font-sans)',
+              letterSpacing: '-0.01em',
+              WebkitFontSmoothing: 'antialiased',
               color: '#ffffff',
               background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
               border: 'none',
@@ -305,7 +281,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              marginTop: '8px',
+              marginTop: '10px',
               boxShadow: '0 8px 20px -4px rgba(79, 70, 229, 0.45)',
               transition: 'all 0.2s ease',
               opacity: loading ? 0.75 : 1,
@@ -314,29 +290,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess }) => {
             {loading ? (
               <>
                 <RefreshCw size={18} className="spin" />
-                <span>Đang xác thực...</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 600 }}>Đang xác thực...</span>
               </>
             ) : (
               <>
                 <LogIn size={18} />
-                <span>Đăng Nhập Quản Trị</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700 }}>Đăng nhập</span>
               </>
             )}
           </button>
         </form>
-
-        <div
-          style={{
-            marginTop: '24px',
-            paddingTop: '18px',
-            borderTop: '1px solid #f1f5f9',
-            textAlign: 'center',
-            fontSize: '12px',
-            color: '#94a3b8',
-          }}
-        >
-          <span>Phiên bản Cashflow Private • Chỉ dành cho chủ tài khoản</span>
-        </div>
       </div>
     </div>
   );

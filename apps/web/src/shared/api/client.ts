@@ -1,3 +1,5 @@
+import { ForecastResponse, AnalyticsConfig } from '../types';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 export class ApiClient {
@@ -286,11 +288,11 @@ export class ApiClient {
   }
 
   // Analytics & Gemini AI Forecast
-  async getAnalyticsConfig() {
-    return this.request<any>('/analytics/config');
+  async getAnalyticsConfig(): Promise<AnalyticsConfig> {
+    return this.request<AnalyticsConfig>('/analytics/config');
   }
 
-  async getCategoryReport(startDate?: string, endDate?: string) {
+  async getCategoryReport(startDate?: string, endDate?: string): Promise<any> {
     const params = new URLSearchParams();
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
@@ -298,8 +300,8 @@ export class ApiClient {
     return this.request<any>(`/analytics/report${query ? `?${query}` : ''}`);
   }
 
-  async runAnalytics(options: any) {
-    return this.request<any>('/analytics/analyze', {
+  async runAnalytics(options: any): Promise<ForecastResponse> {
+    return this.request<ForecastResponse>('/analytics/analyze', {
       method: 'POST',
       body: JSON.stringify(options),
     });
