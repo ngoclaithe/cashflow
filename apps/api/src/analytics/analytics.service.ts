@@ -25,6 +25,21 @@ export interface AnalyzeOptions {
   upcomingItems?: UpcomingItem[];
 }
 
+export interface CategoryReportItem {
+  id: string;
+  name: string;
+  color: string;
+  icon?: string;
+  spent: number;
+  percentOfTotal: number;
+  txCount: number;
+  dailyAverage: number;
+  budgetAmount: number;
+  remainingBudget: number | null;
+  percentOfBudget: number;
+  status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET';
+}
+
 export interface ForecastResponse {
   account: {
     id: string;
@@ -61,6 +76,15 @@ export interface ForecastResponse {
     expensesList: UpcomingItem[];
     incomesList: UpcomingItem[];
     items: UpcomingItem[];
+  };
+  categoryReport: CategoryReportItem[];
+  budgetSummary: {
+    totalBudget: number;
+    totalSpentInBudgeted: number;
+    budgetUtilizationPercent: number;
+    categoriesOverBudget: number;
+    categoriesNearLimit: number;
+    categoriesSafe: number;
   };
   categories: Array<{
     id: string;
@@ -137,8 +161,8 @@ export class AnalyticsService {
   ) {}
 
   /**
-   * Pre-loads default parameters, detected salary, and suggested upcoming milestone items
-   * without triggering an AI API call.
+   * Pre-loads default parameters, detected salary, and recurring milestone items directly
+   * from the user's database without creating duplicates.
    */
   async getInitialConfig(userId: string) {
     const now = new Date();
@@ -166,8 +190,13 @@ export class AnalyticsService {
       totalCash += Number(a.balance);
     }
 
-    // Detected salary
-    const latestSalary = await this.prisma.transaction.findFirst({
+    // Check user recurring obligations and salary from DB
+    const dbRecurring = await this.prisma.recurringTransaction.findMany({
+      where: { userId, isActive: true },
+    });
+
+    const recurringSalary = dbRecurring.find((r) => r.direction === TransactionDirection.INCOME);
+    const latestSalaryTx = await this.prisma.transaction.findFirst({
       where: {
         userId,
         direction: TransactionDirection.INCOME,
@@ -175,10 +204,14 @@ export class AnalyticsService {
       },
       orderBy: { transactionDate: 'desc' },
     });
-    const detectedSalaryAmount = latestSalary ? Number(latestSalary.amount) : 20862750;
+
+    const detectedSalaryAmount = recurringSalary
+      ? Number(recurringSalary.amount)
+      : latestSalaryTx
+      ? Number(latestSalaryTx.amount)
+      : 20300000;
 
     // Default dates:
-    // Analysis range: from 10th of this month to today (or 7 days ago if today <= 10)
     let startD: Date;
     if (now.getDate() >= 10) {
       startD = new Date(currentYear, currentMonth, 10);
@@ -196,87 +229,69 @@ export class AnalyticsService {
       targetD = new Date(currentYear, currentMonth, 10);
     }
 
-    // Rent dates: next month 5th and 7th
+    const nextMonth = now.getDate() >= 10 ? currentMonth + 1 : currentMonth;
     const rentMonth = now.getDate() >= 10 ? currentMonth + 1 : currentMonth;
-    const rentDate5 = `${currentYear}-${pad(rentMonth + 1)}-05`;
-    const rentDate7 = `${currentYear}-${pad(rentMonth + 1)}-07`;
 
-    // 20/10 milestone (Vietnamese Women's Day):
-    const gift2010Date = `${currentYear}-10-20`;
+    const suggestedUpcomingItems: UpcomingItem[] = [];
 
-    // Utility bills:
-    const billDate = `${currentYear}-${pad(rentMonth + 1)}-02`;
-
-    const suggestedUpcomingItems: UpcomingItem[] = [
-      {
-        id: 'rent_05',
-        name: '🏠 Tiền nhà / Tiền phòng (Mùng 5 tháng sau)',
-        amount: 4500000,
-        type: 'EXPENSE',
-        dueDate: rentDate5,
-        enabled: true,
-        category: 'Thuê nhà',
-        isQuickPreset: true,
-      },
-      {
-        id: 'rent_07',
-        name: '🏠 Tiền nhà / Tiền phòng (Mùng 7 tháng sau)',
-        amount: 4500000,
-        type: 'EXPENSE',
-        dueDate: rentDate7,
-        enabled: false,
-        category: 'Thuê nhà',
-        isQuickPreset: true,
-      },
-      {
-        id: 'gift_20_10',
-        name: '🎁 Tiền quà 20/10 Phụ Nữ Việt Nam',
-        amount: 1000000,
-        type: 'EXPENSE',
-        dueDate: gift2010Date,
-        enabled: true,
-        category: 'Quà tặng',
-        isQuickPreset: true,
-      },
-      {
-        id: 'utility_bills',
-        name: '⚡ Hóa đơn Điện / Nước / Internet',
-        amount: 1200000,
-        type: 'EXPENSE',
-        dueDate: billDate,
-        enabled: true,
-        category: 'Hóa đơn & Tiện ích',
-        isQuickPreset: true,
-      },
-      {
-        id: 'party_event',
-        name: '🧧 Tiệc cưới / Sinh nhật bạn bè',
-        amount: 800000,
-        type: 'EXPENSE',
-        dueDate: `${currentYear}-10-28`,
-        enabled: false,
-        category: 'Xã giao & Giải trí',
-        isQuickPreset: true,
-      },
-    ];
-
-    // Check user recurring obligations from DB
-    const dbRecurring = await this.prisma.recurringTransaction.findMany({
-      where: { userId, isActive: true },
-    });
+    // 1. Load actual recurring expenses from the user's DB (e.g. Tiền thuê nhà định kỳ 7tr)
+    let hasRentInDb = false;
     for (const r of dbRecurring) {
-      const day = r.dayOfMonth || 5;
-      const dueDate = `${currentYear}-${pad(rentMonth + 1)}-${pad(day)}`;
+      if (r.direction === TransactionDirection.EXPENSE) {
+        const isRent = r.name.toLowerCase().includes('nhà') || r.name.toLowerCase().includes('phòng');
+        if (isRent) hasRentInDb = true;
+        const day = r.dayOfMonth || 5;
+        const dueDate = `${currentYear}-${pad(rentMonth + 1)}-${pad(day)}`;
+        suggestedUpcomingItems.push({
+          id: `db_${r.id}`,
+          name: isRent ? `🏠 ${r.name}` : r.name,
+          amount: Number(r.amount),
+          type: 'EXPENSE',
+          dueDate,
+          enabled: true,
+          category: isRent ? 'Thuê nhà' : 'Khoản định kỳ',
+          isQuickPreset: isRent,
+        });
+      }
+    }
+
+    // If user has NO rent item in DB, suggest one based on standard
+    if (!hasRentInDb) {
       suggestedUpcomingItems.push({
-        id: `db_${r.id}`,
-        name: r.name,
-        amount: Number(r.amount),
-        type: r.direction === TransactionDirection.INCOME ? 'INCOME' : 'EXPENSE',
-        dueDate,
-        enabled: r.isActive,
-        isQuickPreset: false,
+        id: 'rent_custom',
+        name: '🏠 Tiền thuê nhà định kỳ',
+        amount: 7000000,
+        type: 'EXPENSE',
+        dueDate: `${currentYear}-${pad(rentMonth + 1)}-05`,
+        enabled: true,
+        category: 'Thuê nhà',
+        isQuickPreset: true,
       });
     }
+
+    // 2. Add seasonal/one-off items requested by user (e.g. Quà 20/10)
+    suggestedUpcomingItems.push({
+      id: 'gift_20_10',
+      name: '🎁 Tiền quà 20/10 Phụ Nữ Việt Nam',
+      amount: 1000000,
+      type: 'EXPENSE',
+      dueDate: `${currentYear}-10-20`,
+      enabled: true,
+      category: 'Quà tặng',
+      isQuickPreset: true,
+    });
+
+    // 3. Add monthly utilities
+    suggestedUpcomingItems.push({
+      id: 'utility_bills',
+      name: '⚡ Hóa đơn Điện / Nước / Mạng',
+      amount: 1200000,
+      type: 'EXPENSE',
+      dueDate: `${currentYear}-${pad(nextMonth + 1)}-02`,
+      enabled: true,
+      category: 'Hóa đơn & Tiện ích',
+      isQuickPreset: true,
+    });
 
     return {
       account: {
@@ -299,12 +314,12 @@ export class AnalyticsService {
   }
 
   /**
-   * Run comprehensive analysis & projections with Gemini AI
+   * Run comprehensive analysis, Category Budget Report, and AI projections
    */
   async analyze(userId: string, options: AnalyzeOptions = {}): Promise<ForecastResponse> {
     const now = new Date();
 
-    // 1. Resolve Dates from user input or sensible defaults
+    // 1. Resolve Dates
     let startD: Date;
     let endD: Date;
     let targetD: Date;
@@ -451,7 +466,116 @@ export class AnalyticsService {
       }))
       .sort((a, b) => b.amount - a.amount);
 
-    // 5. Query Historical Salary Patterns
+    // 5. Query User's Established Budgets to produce Category Budget Report
+    const userBudgets = await this.prisma.budget.findMany({
+      where: { userId, isActive: true },
+      include: { category: true },
+    });
+
+    const budgetMapByCategoryId = new Map<string, number>();
+    const budgetMapByName = new Map<string, number>();
+
+    for (const b of userBudgets) {
+      const amt = Number(b.amount);
+      if (b.categoryId) {
+        budgetMapByCategoryId.set(b.categoryId, (budgetMapByCategoryId.get(b.categoryId) || 0) + amt);
+      }
+      if (b.category?.name) {
+        budgetMapByName.set(b.category.name.toLowerCase().trim(), amt);
+      }
+      budgetMapByName.set(b.name.toLowerCase().trim(), amt);
+    }
+
+    const categoryReport: CategoryReportItem[] = [];
+    let totalBudgetSum = 0;
+    let totalSpentInBudgetedSum = 0;
+    let categoriesOverBudgetCount = 0;
+    let categoriesNearLimitCount = 0;
+    let categoriesSafeCount = 0;
+
+    for (const cat of categoriesList) {
+      const budgetAmount =
+        budgetMapByCategoryId.get(cat.id) ||
+        budgetMapByName.get(cat.name.toLowerCase().trim()) ||
+        0;
+
+      const spent = cat.amount;
+      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' = 'NO_BUDGET';
+      let percentOfBudget = 0;
+      let remainingBudget: number | null = null;
+
+      if (budgetAmount > 0) {
+        totalBudgetSum += budgetAmount;
+        totalSpentInBudgetedSum += spent;
+        percentOfBudget = Math.round((spent / budgetAmount) * 100);
+        remainingBudget = Math.max(0, budgetAmount - spent);
+
+        if (percentOfBudget > 100) {
+          status = 'OVER_BUDGET';
+          categoriesOverBudgetCount++;
+        } else if (percentOfBudget >= 80) {
+          status = 'NEAR_LIMIT';
+          categoriesNearLimitCount++;
+        } else {
+          status = 'SAFE';
+          categoriesSafeCount++;
+        }
+      }
+
+      categoryReport.push({
+        id: cat.id,
+        name: cat.name,
+        color: cat.color,
+        spent,
+        percentOfTotal: cat.percent,
+        txCount: cat.count,
+        dailyAverage: Math.round(spent / analysisDays),
+        budgetAmount,
+        remainingBudget,
+        percentOfBudget,
+        status,
+      });
+    }
+
+    // Also include any budgeted categories that had 0 spending in this period
+    for (const b of userBudgets) {
+      const bCatId = b.categoryId || b.id;
+      const bCatName = b.category?.name || b.name;
+      const alreadyIncluded = categoryReport.some(
+        (c) => c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
+      );
+
+      if (!alreadyIncluded) {
+        const bAmt = Number(b.amount);
+        totalBudgetSum += bAmt;
+        categoriesSafeCount++;
+        categoryReport.push({
+          id: bCatId,
+          name: bCatName,
+          color: b.category?.color || '#94a3b8',
+          spent: 0,
+          percentOfTotal: 0,
+          txCount: 0,
+          dailyAverage: 0,
+          budgetAmount: bAmt,
+          remainingBudget: bAmt,
+          percentOfBudget: 0,
+          status: 'SAFE',
+        });
+      }
+    }
+
+    const budgetSummary = {
+      totalBudget: totalBudgetSum,
+      totalSpentInBudgeted: totalSpentInBudgetedSum,
+      budgetUtilizationPercent:
+        totalBudgetSum > 0 ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100) : 0,
+      categoriesOverBudget: categoriesOverBudgetCount,
+      categoriesNearLimit: categoriesNearLimitCount,
+      categoriesSafe: categoriesSafeCount,
+    };
+
+    // 6. Query Historical Salary Patterns
     const recentSalaries = await this.prisma.transaction.findMany({
       where: {
         userId,
@@ -463,13 +587,12 @@ export class AnalyticsService {
     });
 
     const latestSalary = recentSalaries[0];
-    const detectedSalaryAmount = latestSalary ? new Decimal(latestSalary.amount.toString()).toNumber() : 20862750;
+    const detectedSalaryAmount = latestSalary ? new Decimal(latestSalary.amount.toString()).toNumber() : 20300000;
     const historicalSalaryDesc = latestSalary ? latestSalary.description : 'CT TNHH Phat trien nguon nhan luc Gina Viet Nam';
 
-    // If user explicitly provided expectedIncome, use it; otherwise use detected salary
     const expectedIncome = options.expectedIncome !== undefined ? Number(options.expectedIncome) : detectedSalaryAmount;
 
-    // 6. Handle Upcoming Planned Items (Khoản dự kiến sắp tới - Tiền nhà, quà 20/10, v.v.)
+    // 7. Handle Upcoming Planned Items
     const rawUpcoming = options.upcomingItems || [];
     const enabledUpcoming = rawUpcoming.filter((item) => item.enabled === true);
 
@@ -482,7 +605,6 @@ export class AnalyticsService {
       const itemDue = new Date(item.dueDate);
       itemDue.setHours(23, 59, 59, 999);
 
-      // Only count items that occur within the forecast window (before or on targetDate)
       if (itemDue <= targetD) {
         const amt = Number(item.amount) || 0;
         if (item.type === 'EXPENSE') {
@@ -495,20 +617,17 @@ export class AnalyticsService {
       }
     }
 
-    // Calculate safe daily allowance after reserving funds for upcoming expenses
     const reserveNeeded = Math.max(0, totalUpcomingExpenses - totalUpcomingIncomes);
     const availableForLiving = Math.max(0, currentBalance - reserveNeeded);
     const safeDailySpendingAllowance = Math.max(0, Math.round(availableForLiving / forecastDays));
 
-    // 7. Calculate Projections (incorporating upcoming items)
-    // Baseline (maintains current daily burn rate + upcoming planned expenses)
+    // 8. Calculate Projections
     const baselineDailyBurn = dailyNetBurnAvg > 0 ? dailyNetBurnAvg : dailyExpenseAvg;
     const baselineRegularExpense = baselineDailyBurn * forecastDays;
     const baselineProjectedExpense = baselineRegularExpense + totalUpcomingExpenses;
     const baselineBalanceBefore = currentBalance - baselineRegularExpense - totalUpcomingExpenses + totalUpcomingIncomes;
     const baselineBalanceAfter = baselineBalanceBefore + expectedIncome;
 
-    // Optimized (strips out anomalies/loans, tight living expenses + upcoming planned expenses)
     let anomalyTotal = new Decimal(0);
     for (const a of anomalies) {
       if (a.categoryName === 'Cho vay' || a.amount >= 500000) {
@@ -525,7 +644,6 @@ export class AnalyticsService {
     const optimizedBalanceBefore = currentBalance - optimizedRegularExpense - totalUpcomingExpenses + totalUpcomingIncomes;
     const optimizedBalanceAfter = optimizedBalanceBefore + expectedIncome;
 
-    // Conservative (higher burn + upcoming planned expenses)
     const conservativeDailyBurn = Math.max(500000, Math.round(baselineDailyBurn * 1.35));
     const conservativeRegularExpense = conservativeDailyBurn * forecastDays;
     const conservativeProjectedExpense = conservativeRegularExpense + totalUpcomingExpenses;
@@ -564,6 +682,8 @@ export class AnalyticsService {
         incomesList,
       },
       categories: categoriesList,
+      categoryReport,
+      budgetSummary,
       anomalies,
       projections: {
         baseline: {
@@ -585,7 +705,7 @@ export class AnalyticsService {
       },
     };
 
-    // 8. Call Gemini AI with complete user parameters
+    // 9. Call Gemini AI (using strictly locked models gemini-3.6-flash & gemini-3.8-flash)
     const aiAnalysis = await this.geminiService.analyzeFinancialData(context);
 
     return {
@@ -625,6 +745,8 @@ export class AnalyticsService {
         incomesList,
         items: rawUpcoming,
       },
+      categoryReport,
+      budgetSummary,
       categories: categoriesList,
       anomalies,
       historicalSalary: {

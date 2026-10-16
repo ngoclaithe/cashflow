@@ -26,18 +26,8 @@ export class GeminiService {
       return this.generateFallbackAnalysis(financialContext, 'Chưa cấu hình GEMINI_API_KEY trong .env');
     }
 
-    const preferredModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.6-flash';
-    const modelsToTry = Array.from(
-      new Set([
-        preferredModel,
-        'gemini-3.6-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-flash-lite-latest',
-        'gemini-3-flash-preview',
-        'gemini-flash-latest',
-        'gemini-3.7-flash',
-      ]),
-    );
+    // Cố định 2 model Gemini: 3.6 Flash và 3.8 Flash theo yêu cầu
+    const modelsToTry = ['gemini-3.6-flash', 'gemini-3.8-flash'];
 
     const prompt = this.buildPrompt(financialContext);
 
@@ -140,13 +130,17 @@ ${upcomingExpensesText}
 * Khoản thu dự kiến khác sắp tới: Tổng cộng: ${ctx.upcoming?.totalIncomes?.toLocaleString('vi-VN') || 0} VND
 ${upcomingIncomesText}
 
-CƠ CẤU CHI TIÊU THEO DANH MỤC:
+BÁO CÁO HẠNG MỤC THU CHI & TÌNH HÌNH THỰC HIỆN NGÂN SÁCH ĐÃ THIẾT LẬP:
 ${
-  ctx.categories.length > 0
-    ? ctx.categories
+  ctx.categoryReport && ctx.categoryReport.length > 0
+    ? ctx.categoryReport
         .map(
           (c: any) =>
-            `- ${c.name}: ${c.amount.toLocaleString('vi-VN')} VND (${c.percent}%, ${c.count} giao dịch)`,
+            `- ${c.name}: Thực chi ${c.spent.toLocaleString('vi-VN')} VND (${c.percentOfTotal}% tổng chi, ${c.count} giao dịch, bình quân ${c.dailyAverage.toLocaleString('vi-VN')} VND/ngày)${
+              c.budgetAmount > 0
+                ? ` | Hạn mức ngân sách: ${c.budgetAmount.toLocaleString('vi-VN')} VND (Đã dùng ${c.percentOfBudget}%, Trạng thái: ${c.status})`
+                : ' | Chưa đặt hạn mức ngân sách'
+            }`,
         )
         .join('\n')
     : '- Không có giao dịch chi tiêu trong khoảng thời gian này.'
