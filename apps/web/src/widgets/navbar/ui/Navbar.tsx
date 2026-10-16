@@ -9,6 +9,7 @@ import {
   RefreshCw,
   LogOut,
   LogIn,
+  Sparkles,
   Tags,
 } from 'lucide-react';
 import { User } from '../../../shared/types';
@@ -36,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
+    { id: 'analytics', label: 'Dự báo AI', icon: Sparkles },
     { id: 'categories', label: 'Danh mục', icon: Tags },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'savings', label: 'Mục tiêu', icon: Target },

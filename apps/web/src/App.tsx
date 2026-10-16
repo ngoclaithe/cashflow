@@ -6,6 +6,7 @@ import { TransactionsPage } from './pages/transactions';
 import { BudgetsPage } from './pages/budgets';
 import { SavingsPage } from './pages/savings';
 import { CategoriesPage } from './pages/categories';
+import { AnalyticsPage } from './pages/analytics';
 import { AuthPage } from './features/auth';
 import { IosInstallPrompt } from './features/pwa';
 import { api } from './shared/api/client';
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
         {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} refreshKey={syncKey} />}
         {activeTab === 'calendar' && <TransactionsPage onNavigate={setActiveTab} initialView="calendar" refreshKey={syncKey} />}
         {activeTab === 'transactions' && <TransactionsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
+        {activeTab === 'analytics' && <AnalyticsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
         {activeTab === 'budgets' && <BudgetsPage refreshKey={syncKey} />}
         {activeTab === 'savings' && <SavingsPage refreshKey={syncKey} />}
         {activeTab === 'categories' && <CategoriesPage refreshKey={syncKey} />}

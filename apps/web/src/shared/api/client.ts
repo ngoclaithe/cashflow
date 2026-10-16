@@ -280,6 +280,17 @@ export class ApiClient {
       body: JSON.stringify({ balance, accountNumber }),
     });
   }
+
+  // Analytics & Gemini AI Forecast
+  async getForecast(refresh = false) {
+    return this.request<any>(`/analytics/forecast${refresh ? '?refresh=true' : ''}`);
+  }
+
+  async reanalyzeForecast() {
+    return this.request<any>('/analytics/reanalyze', {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiClient();

@@ -1,14 +1,15 @@
 import { useSyncExternalStore } from 'react';
 
-export type NavigationTab = 'dashboard' | 'transactions' | 'categories' | 'budgets' | 'savings' | 'calendar';
+export type NavigationTab = 'dashboard' | 'transactions' | 'calendar' | 'analytics' | 'budgets' | 'savings' | 'categories';
 
 export const VALID_TABS: readonly NavigationTab[] = [
   'dashboard',
   'transactions',
-  'categories',
+  'calendar',
+  'analytics',
   'budgets',
   'savings',
-  'calendar',
+  'categories',
 ] as const;
 
 const STORAGE_KEY = 'cashflow_active_tab';
