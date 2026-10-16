@@ -26,14 +26,18 @@ export class GeminiService {
       return this.generateFallbackAnalysis(financialContext, 'Chưa cấu hình GEMINI_API_KEY trong .env');
     }
 
-    const preferredModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-flash-latest';
-    const modelsToTry = [
-      preferredModel,
-      'gemini-3.5-flash',
-      'gemini-3.8-flash',
-      'gemini-3.1-flash-lite',
-      'gemini-3.1-pro-preview',
-    ];
+    const preferredModel = this.config.get<string>('GEMINI_MODEL') || 'gemini-3.6-flash';
+    const modelsToTry = Array.from(
+      new Set([
+        preferredModel,
+        'gemini-3.6-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3-flash-preview',
+        'gemini-flash-latest',
+        'gemini-3.7-flash',
+      ]),
+    );
 
     const prompt = this.buildPrompt(financialContext);
 
