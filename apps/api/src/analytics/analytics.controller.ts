@@ -42,6 +42,14 @@ export class AnalyticsController {
   }
 
   /**
+   * Return the latest saved AI analysis result JSON from PostgreSQL DB.
+   */
+  @Get('latest')
+  async getLatest(@CurrentUser() user: UserPayload) {
+    return this.analyticsService.getLatestAnalysisFromDb(user.userId);
+  }
+
+  /**
    * Convenience GET endpoint for initial or fast forecast.
    */
   @Get('forecast')

@@ -45,9 +45,6 @@ interface AnalyticsPageProps {
   refreshKey?: number;
 }
 
-const STORAGE_PROMPT_KEY = 'cashflow_ai_forecast_prompt_v2';
-const STORAGE_RESULT_KEY = 'cashflow_ai_forecast_result_v2';
-
 export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refreshKey }) => {
   // Config & Form State
   const [initialLoading, setInitialLoading] = useState(true);
@@ -56,19 +53,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
   const [endDate, setEndDate] = useState<string>('');
   const [targetDate, setTargetDate] = useState<string>('');
   const [expectedIncome, setExpectedIncome] = useState<number>(20300000);
-
-  // Persistent prompt state: loaded from localStorage immediately
-  const [customQuestion, setCustomQuestion] = useState<string>(() => {
-    try {
-      return localStorage.getItem(STORAGE_PROMPT_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
-
+  const [customQuestion, setCustomQuestion] = useState<string>('');
   const [upcomingItems, setUpcomingItems] = useState<UpcomingItem[]>([]);
 
-  // Persistent Analysis Result State
+  // Persistent Analysis Result State (Loaded directly from PostgreSQL DB)
   const [data, setData] = useState<any | null>(null);
   const [cachedTime, setCachedTime] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -83,56 +71,44 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
   const [newItemDate, setNewItemDate] = useState('');
   const [newItemType, setNewItemType] = useState<'EXPENSE' | 'INCOME'>('EXPENSE');
 
-  // Handle prompt change & persist to localStorage
-  const handlePromptChange = (val: string) => {
-    setCustomQuestion(val);
-    try {
-      localStorage.setItem(STORAGE_PROMPT_KEY, val);
-    } catch (e) {
-      console.warn('Failed to save prompt to localStorage', e);
-    }
-  };
-
-  // 1. Load initial config from database without calling Gemini AI
-  const loadConfigAndRestoreCache = async () => {
+  // 1. Load initial config & saved AI forecast JSON directly from database
+  const loadConfig = async () => {
     setInitialLoading(true);
     setError(null);
 
-    // Step A: Restore cached AI result if available
-    try {
-      const savedResult = localStorage.getItem(STORAGE_RESULT_KEY);
-      if (savedResult) {
-        const parsed = JSON.parse(savedResult);
-        if (parsed && parsed.data) {
-          setData(parsed.data);
-          setCachedTime(parsed.timestamp || null);
-          setIsSettingsExpanded(false); // Collapse settings to showcase cached forecast
-
-          // Also restore dates if available
-          if (parsed.params) {
-            if (parsed.params.startDate) setStartDate(parsed.params.startDate);
-            if (parsed.params.endDate) setEndDate(parsed.params.endDate);
-            if (parsed.params.targetDate) setTargetDate(parsed.params.targetDate);
-            if (parsed.params.expectedIncome !== undefined) setExpectedIncome(parsed.params.expectedIncome);
-            if (parsed.params.upcomingItems) setUpcomingItems(parsed.params.upcomingItems);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Could not read cached AI forecast', e);
-    }
-
-    // Step B: Load database config (account balance, real rent, salary)
     try {
       const cfg = await api.getAnalyticsConfig();
       if (cfg) {
         setAccountInfo(cfg.account);
-        // Only set default form values if not already populated from cache
-        setStartDate((prev) => prev || cfg.defaults.startDate);
-        setEndDate((prev) => prev || cfg.defaults.endDate);
-        setTargetDate((prev) => prev || cfg.defaults.targetDate);
-        setExpectedIncome((prev) => (prev !== undefined && prev !== null ? prev : cfg.defaults.expectedIncome));
-        setUpcomingItems((prev) => (prev && prev.length > 0 ? prev : cfg.suggestedUpcomingItems || []));
+        setStartDate(cfg.defaults.startDate);
+        setEndDate(cfg.defaults.endDate);
+        setTargetDate(cfg.defaults.targetDate);
+        setExpectedIncome(cfg.defaults.expectedIncome);
+        setUpcomingItems(cfg.suggestedUpcomingItems || []);
+
+        // Load saved AI forecast JSON directly from DB
+        if (cfg.latestAnalysis) {
+          const saved = cfg.latestAnalysis;
+          setData(saved);
+          const timeStr = saved.savedAt
+            ? new Date(saved.savedAt).toLocaleString('vi-VN')
+            : saved.aiAnalysis?.generatedAt
+            ? new Date(saved.aiAnalysis.generatedAt).toLocaleString('vi-VN')
+            : null;
+          setCachedTime(timeStr);
+          setIsSettingsExpanded(false); // Collapse settings to showcase saved forecast
+
+          if (saved.customQuestion) {
+            setCustomQuestion(saved.customQuestion);
+          }
+          if (saved.timeframe?.startDate) setStartDate(saved.timeframe.startDate);
+          if (saved.timeframe?.endDate) setEndDate(saved.timeframe.endDate);
+          if (saved.timeframe?.targetDate) setTargetDate(saved.timeframe.targetDate);
+          if (saved.expectedIncome !== undefined) setExpectedIncome(saved.expectedIncome);
+          if (saved.upcoming?.items && saved.upcoming.items.length > 0) {
+            setUpcomingItems(saved.upcoming.items);
+          }
+        }
       }
     } catch (err: any) {
       console.error('Error loading analytics config:', err);
@@ -148,7 +124,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
   };
 
   useEffect(() => {
-    loadConfigAndRestoreCache();
+    loadConfig();
   }, [refreshKey]);
 
   // 2. Trigger Gemini AI analysis with user-configured parameters
@@ -177,20 +153,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
         const nowStr = new Date().toLocaleString('vi-VN');
         setCachedTime(nowStr);
         setIsSettingsExpanded(false);
-
-        // PERSIST RESULT TO LOCALSTORAGE SO TAB SWITCHING NEVER WASTES API
-        try {
-          localStorage.setItem(
-            STORAGE_RESULT_KEY,
-            JSON.stringify({
-              data: res,
-              timestamp: nowStr,
-              params: payload,
-            }),
-          );
-        } catch (e) {
-          console.warn('Failed to persist AI forecast to localStorage', e);
-        }
       }
     } catch (err: any) {
       console.error('Error running analytics:', err);
@@ -863,20 +825,17 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               </div>
             </div>
 
-            {/* Section 5: Custom Prompt / Question for Gemini AI (Auto-saved to localStorage) */}
+            {/* Section 5: Custom Prompt / Question for Gemini AI */}
             <div style={{ background: 'var(--bg-main)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <MessageSquare size={15} color="var(--primary)" />
-                  <span>5. Câu hỏi / Yêu cầu riêng cho Gemini AI</span>
+                  <span>5. Câu hỏi / Yêu cầu riêng cho Gemini AI (Tùy chọn)</span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>
-                  ✓ Đã tự động lưu prompt (chuyển tab không mất)
-                </span>
               </div>
               <textarea
                 value={customQuestion}
-                onChange={(e) => handlePromptChange(e.target.value)}
+                onChange={(e) => setCustomQuestion(e.target.value)}
                 placeholder="Ví dụ: Liệu tôi có đủ tiền trả tiền nhà và mua quà 20/10 không? Mỗi ngày còn dư bao nhiêu tiền tiêu?"
                 className="form-input"
                 rows={2}
@@ -885,7 +844,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => handlePromptChange('Tôi có đủ tiền trả tiền nhà và quà 20/10 mà vẫn đủ chi tiêu sinh hoạt không?')}
+                  onClick={() => setCustomQuestion('Tôi có đủ tiền trả tiền nhà và quà 20/10 mà vẫn đủ chi tiêu sinh hoạt không?')}
                   className="btn btn-secondary btn-sm"
                   style={{ fontSize: '11px', padding: '2px 8px' }}
                 >
@@ -893,7 +852,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                 </button>
                 <button
                   type="button"
-                  onClick={() => handlePromptChange('Hạn mức ăn uống và tiêu vặt an toàn mỗi ngày của tôi là bao nhiêu?')}
+                  onClick={() => setCustomQuestion('Hạn mức ăn uống và tiêu vặt an toàn mỗi ngày của tôi là bao nhiêu?')}
                   className="btn btn-secondary btn-sm"
                   style={{ fontSize: '11px', padding: '2px 8px' }}
                 >
@@ -1068,10 +1027,10 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               <ShieldCheck size={20} color="#059669" />
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#065f46' }}>
-                  Kết quả dự báo đã được lưu trong trình duyệt {cachedTime ? `(Lúc ${cachedTime})` : ''}
+                  Kết quả phân tích & dự báo đã lưu trong Database {cachedTime ? `(Cập nhật: ${cachedTime})` : ''}
                 </div>
                 <div style={{ fontSize: '11px', color: '#047857' }}>
-                  Chuyển tab hoặc F5 tải lại ngay lập tức — Không tốn thêm lượt gọi API Gemini!
+                  Tải trực tiếp từ cơ sở dữ liệu khi mở lại hoặc chuyển tab — Không gọi lại API Gemini!
                 </div>
               </div>
             </div>

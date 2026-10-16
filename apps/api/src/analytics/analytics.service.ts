@@ -310,6 +310,7 @@ export class AnalyticsService {
         customQuestion: '',
       },
       suggestedUpcomingItems,
+      latestAnalysis: await this.getLatestAnalysisFromDb(userId),
     };
   }
 
@@ -708,7 +709,7 @@ export class AnalyticsService {
     // 9. Call Gemini AI (using strictly locked models gemini-3.6-flash & gemini-3.8-flash)
     const aiAnalysis = await this.geminiService.analyzeFinancialData(context);
 
-    return {
+    const result: ForecastResponse = {
       account: {
         id: primaryAccount.id,
         displayName: primaryAccount.displayName,
@@ -798,6 +799,61 @@ export class AnalyticsService {
       },
       aiAnalysis,
     };
+
+    // Save JSON result directly into PostgreSQL DB (system_settings)
+    try {
+      await this.prisma.systemSetting.upsert({
+        where: {
+          userId_key: {
+            userId,
+            key: 'LATEST_AI_FORECAST_RESULT',
+          },
+        },
+        create: {
+          userId,
+          key: 'LATEST_AI_FORECAST_RESULT',
+          value: JSON.stringify(result),
+        },
+        update: {
+          value: JSON.stringify(result),
+          updatedAt: new Date(),
+        },
+      });
+      this.logger.log(`Saved latest AI forecast result to DB for user ${userId}`);
+    } catch (err) {
+      this.logger.error('Failed to save AI forecast result to DB', err);
+    }
+
+    return result;
+  }
+
+  /**
+   * Load the most recently saved AI analysis result JSON directly from the DB.
+   */
+  async getLatestAnalysisFromDb(userId: string) {
+    try {
+      const setting = await this.prisma.systemSetting.findUnique({
+        where: {
+          userId_key: {
+            userId,
+            key: 'LATEST_AI_FORECAST_RESULT',
+          },
+        },
+      });
+
+      if (!setting || !setting.value) {
+        return null;
+      }
+
+      const parsed = JSON.parse(setting.value);
+      return {
+        ...parsed,
+        savedAt: setting.updatedAt,
+      };
+    } catch (err) {
+      this.logger.error('Failed to read latest AI forecast result from DB', err);
+      return null;
+    }
   }
 
   /**

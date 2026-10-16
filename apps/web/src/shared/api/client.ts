@@ -295,6 +295,10 @@ export class ApiClient {
     });
   }
 
+  async getLatestForecast() {
+    return this.request<any>('/analytics/latest');
+  }
+
   async getForecast(refresh = false) {
     return this.request<any>(`/analytics/forecast${refresh ? '?refresh=true' : ''}`);
   }
