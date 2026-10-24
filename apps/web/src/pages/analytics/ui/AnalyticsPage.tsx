@@ -908,12 +908,12 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
             </div>
 
             <div className="glass-card" style={{ padding: '16px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Tốc độ chi tiêu thực tế</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>Tốc độ chi tiêu sinh hoạt</div>
               <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--expense)', marginTop: '4px' }}>
                 {formatVND(data.stats?.dailyExpenseAvg ?? 0)}/ngày
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Trung bình {data.timeframe?.analysisDays ?? 7} ngày qua
+                Đã loại trừ cho vay • {data.timeframe?.analysisDays ?? 7} ngày qua
               </div>
             </div>
 

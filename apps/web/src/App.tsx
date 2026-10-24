@@ -108,10 +108,10 @@ export const App: React.FC = () => {
           padding: '16px 14px',
         }}
       >
-        {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} refreshKey={syncKey} />}
+        {(activeTab === 'dashboard' || activeTab === 'report') && <DashboardPage onNavigate={setActiveTab} refreshKey={syncKey} />}
         {activeTab === 'calendar' && <TransactionsPage onNavigate={setActiveTab} initialView="calendar" refreshKey={syncKey} />}
         {activeTab === 'transactions' && <TransactionsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
-        {(activeTab === 'budgets' || activeTab === 'report') && <BudgetsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
+        {activeTab === 'budgets' && <BudgetsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
         {activeTab === 'analytics' && <AnalyticsPage onNavigate={setActiveTab} refreshKey={syncKey} />}
         {activeTab === 'savings' && <SavingsPage refreshKey={syncKey} />}
         {activeTab === 'categories' && <CategoriesPage refreshKey={syncKey} />}

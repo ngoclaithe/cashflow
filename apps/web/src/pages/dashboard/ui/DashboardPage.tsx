@@ -1,22 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
   Wallet,
   Scale,
-  AlertTriangle,
+  PieChart as PieChartIcon,
+  BarChart3,
   Calendar,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
-  ArrowLeftRight,
-  Sparkles,
-  ShieldCheck,
-  PieChart,
-  CheckCircle2,
+  ArrowRight,
+  RefreshCw,
+  Filter,
 } from 'lucide-react';
 import { DashboardSummary } from '../../../shared/types';
-import { formatVND, formatDate } from '../../../shared/lib/format';
+import { formatVND, formatDateOnly } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
 
 interface DashboardPageProps {
@@ -33,22 +32,33 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   refreshKey,
 }) => {
   const [summary, setSummary] = useState<DashboardSummary | null>(propSummary || null);
-  const [cashFlowHistory, setCashFlowHistory] = useState<Array<{ monthLabel: string; income: number; expense: number; net: number }>>(propCashFlowHistory || []);
+  const [cashFlowHistory, setCashFlowHistory] = useState<
+    Array<{ monthLabel: string; income: number; expense: number; net: number }>
+  >(propCashFlowHistory || []);
   const [loading, setLoading] = useState(!propSummary);
+  const [reportData, setReportData] = useState<any | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [hoveredSlice, setHoveredSlice] = useState<{ name: string; amount: number; percentage: number; color: string } | null>(null);
 
-  useEffect(() => {
-    if (propSummary) {
-      setSummary(propSummary);
-    }
-    if (propCashFlowHistory) {
-      setCashFlowHistory(propCashFlowHistory);
-    }
-  }, [propSummary, propCashFlowHistory]);
+  // Date filters for flexible report view
+  const [datePreset, setDatePreset] = useState<'this_month' | 'last_month' | 'last_30_days' | 'since_10th' | 'custom'>('this_month');
+  
+  const [startDate, setStartDate] = useState<string>(() => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  });
 
+  const [endDate, setEndDate] = useState<string>(() => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  });
+
+  // Load base summary & cashflow history
   useEffect(() => {
     let isMounted = true;
-    const loadData = async () => {
-      if (propSummary && propCashFlowHistory && !refreshKey) return;
+    const loadBaseData = async () => {
       try {
         const [sumRes, cfRes] = await Promise.all([
           api.getDashboardSummary().catch(() => null),
@@ -65,89 +75,279 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       }
     };
 
-    loadData();
+    loadBaseData();
     return () => {
       isMounted = false;
     };
   }, [refreshKey]);
 
-  if (loading || !summary) {
+  // Load report data for selected date range
+  useEffect(() => {
+    let isMounted = true;
+    const loadReport = async () => {
+      setLoadingReport(true);
+      try {
+        const res = await api.getCategoryReport(startDate, endDate);
+        if (isMounted && res) {
+          setReportData(res);
+        }
+      } catch (err) {
+        console.warn('Category report fetch error:', err);
+      } finally {
+        if (isMounted) setLoadingReport(false);
+      }
+    };
+
+    loadReport();
+    return () => {
+      isMounted = false;
+    };
+  }, [startDate, endDate, refreshKey]);
+
+  // Handle Quick filter preset click
+  const applyPreset = (preset: 'this_month' | 'last_month' | 'last_30_days' | 'since_10th') => {
+    setDatePreset(preset);
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (preset === 'this_month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(toIso(start));
+      setEndDate(toIso(now));
+    } else if (preset === 'last_month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      setStartDate(toIso(start));
+      setEndDate(toIso(end));
+    } else if (preset === 'last_30_days') {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 30);
+      setStartDate(toIso(start));
+      setEndDate(toIso(now));
+    } else if (preset === 'since_10th') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 10);
+      setStartDate(toIso(start));
+      setEndDate(toIso(now));
+    }
+  };
+
+  // Derive categories breakdown for chart
+  const categoriesList = useMemo(() => {
+    if (reportData?.categoryReport && reportData.categoryReport.length > 0) {
+      return reportData.categoryReport
+        .filter((c: any) => c.spent > 0)
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          color: c.color || '#4f46e5',
+          amount: c.spent,
+          percentage: c.percentOfTotal,
+          txCount: c.txCount,
+          dailyAverage: c.dailyAverage,
+          budgetAmount: c.budgetAmount,
+          percentOfBudget: c.percentOfBudget,
+          status: c.status,
+        }))
+        .sort((a: any, b: any) => b.amount - a.amount);
+    }
+    if (summary?.categoryBreakdown?.items) {
+      return summary.categoryBreakdown.items.map((c) => ({
+        id: c.id,
+        name: c.name,
+        color: c.color || '#4f46e5',
+        amount: c.amount,
+        percentage: c.percentage,
+        txCount: 0,
+        dailyAverage: 0,
+        budgetAmount: 0,
+        percentOfBudget: 0,
+        status: 'NO_BUDGET',
+      }));
+    }
+    return [];
+  }, [reportData, summary]);
+
+  const totalExpenseAmount = useMemo(() => {
+    if (reportData?.stats?.livingExpense !== undefined) {
+      return reportData.stats.livingExpense;
+    }
+    if (reportData?.stats?.totalExpense !== undefined) {
+      return reportData.stats.totalExpense;
+    }
+    return summary?.currentMonth?.expenses || 0;
+  }, [reportData, summary]);
+
+  const totalIncomeAmount = useMemo(() => {
+    if (reportData?.stats?.livingIncome !== undefined) {
+      return reportData.stats.livingIncome;
+    }
+    if (reportData?.stats?.totalIncome !== undefined) {
+      return reportData.stats.totalIncome;
+    }
+    return summary?.currentMonth?.income || 0;
+  }, [reportData, summary]);
+
+  const netCashFlowAmount = useMemo(() => {
+    return totalIncomeAmount - totalExpenseAmount;
+  }, [totalIncomeAmount, totalExpenseAmount]);
+
+  // Compute SVG Donut Chart Slices
+  const donutSlices = useMemo(() => {
+    if (categoriesList.length === 0 || totalExpenseAmount <= 0) return [];
+
+    let currentAngle = -Math.PI / 2; // Start from 12 o'clock
+    const cx = 130;
+    const cy = 130;
+    const outerR = 100;
+    const innerR = 66;
+
+    return categoriesList.map((cat: any) => {
+      const sliceAngle = (cat.amount / totalExpenseAmount) * (2 * Math.PI);
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + sliceAngle;
+      currentAngle = endAngle;
+
+      const x1 = cx + outerR * Math.cos(startAngle);
+      const y1 = cy + outerR * Math.sin(startAngle);
+      const x2 = cx + outerR * Math.cos(endAngle);
+      const y2 = cy + outerR * Math.sin(endAngle);
+
+      const x3 = cx + innerR * Math.cos(endAngle);
+      const y3 = cy + innerR * Math.sin(endAngle);
+      const x4 = cx + innerR * Math.cos(startAngle);
+      const y4 = cy + innerR * Math.sin(startAngle);
+
+      const largeArc = sliceAngle > Math.PI ? 1 : 0;
+      const pathData = `M ${x1} ${y1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+
+      return {
+        ...cat,
+        pathData,
+      };
+    });
+  }, [categoriesList, totalExpenseAmount]);
+
+  if (loading && !summary) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-        Đang tải dữ liệu tổng quan tài chính...
+        Đang tải dữ liệu báo cáo tài chính...
       </div>
     );
   }
 
-  const {
-    availableCash,
-    currentMonth,
-    categoryBreakdown,
-    budgetsSummary,
-    upcomingObligations,
-    savingsGoals,
-    recentTransactions,
-  } = summary;
-
-  const urgentObligation = upcomingObligations.find((o) => o.isObligation);
+  const availableCash = summary?.availableCash || 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Rent & Obligation Warning Banner if needed */}
-      {urgentObligation && (
-        <div
-          style={{
-            background: urgentObligation.isInsufficientFunds
-              ? 'rgba(244, 63, 94, 0.15)'
-              : 'rgba(99, 102, 241, 0.12)',
-            border: `1px solid ${
-              urgentObligation.isInsufficientFunds ? 'rgba(244, 63, 94, 0.4)' : 'rgba(99, 102, 241, 0.3)'
-            }`,
-            borderRadius: 'var(--radius-lg)',
-            padding: '16px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {urgentObligation.isInsufficientFunds ? (
-              <AlertTriangle size={22} color="var(--expense)" />
-            ) : (
-              <ShieldCheck size={22} color="var(--primary)" />
-            )}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '15px' }}>
-                Nghĩa vụ cố định: {urgentObligation.name} ({formatVND(urgentObligation.amount)})
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Hạn thanh toán: còn {urgentObligation.daysRemaining} ngày. Số dư khả dụng hiện tại:{' '}
-                <strong style={{ color: 'var(--text-primary)' }}>{formatVND(availableCash)}</strong> (
-                {urgentObligation.isInsufficientFunds
-                  ? 'Cảnh báo: Chưa đủ số dư thanh toán!'
-                  : 'Đã sẵn sàng dự phòng chi trả an toàn'}
-                )
-              </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px', paddingBottom: '30px' }}>
+      {/* 1. Header & Interactive Date Filter Bar */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '18px 20px',
+          background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(5, 150, 105, 0.04) 100%)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #4f46e5, #06b6d4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)',
+            }}
+          >
+            <BarChart3 size={22} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Báo Cáo Tài Chính & Phân Bổ Chi Tiêu
+            </h2>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Theo dõi cơ cấu chi tiêu thực tế, dòng tiền và so sánh qua các kỳ
             </div>
           </div>
-          <button onClick={() => onNavigate && onNavigate('transactions')} className="btn btn-secondary btn-sm">
-            + Thêm khoản chi / thu
-          </button>
         </div>
-      )}
 
-      {/* Top 4 KPI Cards */}
+        {/* Quick Date Presets & Custom Date Picker */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input)', padding: '3px', borderRadius: '10px' }}>
+            <button
+              onClick={() => applyPreset('this_month')}
+              className={`btn btn-sm ${datePreset === 'this_month' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '8px' }}
+            >
+              Tháng này
+            </button>
+            <button
+              onClick={() => applyPreset('last_month')}
+              className={`btn btn-sm ${datePreset === 'last_month' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '8px' }}
+            >
+              Tháng trước
+            </button>
+            <button
+              onClick={() => applyPreset('last_30_days')}
+              className={`btn btn-sm ${datePreset === 'last_30_days' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '8px' }}
+            >
+              30 ngày qua
+            </button>
+            <button
+              onClick={() => applyPreset('since_10th')}
+              className={`btn btn-sm ${datePreset === 'since_10th' ? 'btn-primary' : ''}`}
+              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '8px' }}
+            >
+              Từ mùng 10
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setDatePreset('custom');
+                setStartDate(e.target.value);
+              }}
+              className="form-input"
+              style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '8px' }}
+            />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>→</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setDatePreset('custom');
+                setEndDate(e.target.value);
+              }}
+              className="form-input"
+              style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '8px' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Top 4 KPI Cards (Retained and Enhanced) */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
-          gap: '12px',
+          gap: '14px',
         }}
       >
         {/* Available Cash */}
-        <div className="glass-card">
+        <div className="glass-card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               SỐ DƯ KHẢ DỤNG
@@ -171,10 +371,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Income */}
-        <div className="glass-card">
+        <div className="glass-card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              THU NHẬP THÁNG {currentMonth.month}
+              THU NHẬP TRONG KỲ
             </span>
             <div
               style={{
@@ -187,18 +387,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: 'var(--income)' }}>
-            {formatVND(currentMonth.income)}
+            {formatVND(totalIncomeAmount)}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Đã ghi nhận (không tính nội bộ)
+            {datePreset === 'this_month' ? `Tháng ${summary?.currentMonth?.month || new Date().getMonth() + 1}` : 'Theo kỳ chọn'} (không tính nội bộ)
           </div>
         </div>
 
         {/* Expenses */}
-        <div className="glass-card">
+        <div className="glass-card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-              CHI TIÊU THÁNG {currentMonth.month}
+              CHI TIÊU TRONG KỲ
             </span>
             <div
               style={{
@@ -211,15 +411,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, marginTop: '8px', color: 'var(--expense)' }}>
-            {formatVND(currentMonth.expenses)}
+            {formatVND(totalExpenseAmount)}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Hạch toán chi trong tháng
+            {categoriesList.length} hạng mục phát sinh
           </div>
         </div>
 
         {/* Net Cash Flow */}
-        <div className="glass-card">
+        <div className="glass-card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
               DÒNG TIỀN RÒNG (NET)
@@ -239,323 +439,421 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               fontSize: '24px',
               fontWeight: 800,
               marginTop: '8px',
-              color: currentMonth.netCashFlow >= 0 ? 'var(--income)' : 'var(--expense)',
+              color: netCashFlowAmount >= 0 ? 'var(--income)' : 'var(--expense)',
             }}
           >
-            {formatVND(currentMonth.netCashFlow)}
+            {formatVND(netCashFlowAmount)}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Thu nhập trừ Chi phí thực tế
+            {netCashFlowAmount >= 0 ? 'Thặng dư dòng tiền (+)' : 'Thâm hụt chi tiêu (-)'}
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Left (Analytics & Transactions) - Right (Obligations & Budgets & Goals) */}
+      {/* 3. Charts Row: Biểu đồ tròn (Donut) bên trái + Biểu đồ cột phân bổ bên phải */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))',
-          gap: '16px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 450px), 1fr))',
+          gap: '18px',
         }}
       >
-        {/* Left Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Cash Flow Trends (6 Months) */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <TrendingUp size={18} color="var(--primary)" />
-              Biểu đồ dòng tiền (6 tháng gần nhất)
+        {/* DONUT PIE CHART: Phân bổ chi tiêu theo danh mục */}
+        <div className="glass-card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <PieChartIcon size={18} color="var(--primary)" />
+              Biểu đồ tròn phân bổ chi tiêu
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {cashFlowHistory.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
-                  Chưa có dữ liệu lịch sử các tháng trước
-                </div>
-              ) : (
-                cashFlowHistory.map((item, idx) => {
-                  const maxVal = Math.max(...cashFlowHistory.map((h) => Math.max(h.income, h.expense, 1000000)));
-                  const incPercent = (item.income / maxVal) * 100;
-                  const expPercent = (item.expense / maxVal) * 100;
-
-                  return (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                        <span style={{ fontWeight: 600 }}>{item.monthLabel}</span>
-                        <span>
-                          Thu: <strong style={{ color: 'var(--income)' }}>{formatVND(item.income)}</strong> | Chi:{' '}
-                          <strong style={{ color: 'var(--expense)' }}>{formatVND(item.expense)}</strong>
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', height: '10px', gap: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }}>
-                        <div
-                          style={{
-                            width: `${incPercent}%`,
-                            background: 'var(--income)',
-                            borderRadius: '4px',
-                            transition: 'width 0.5s ease',
-                          }}
-                        />
-                        <div
-                          style={{
-                            width: `${expPercent}%`,
-                            background: 'var(--expense)',
-                            borderRadius: '4px',
-                            transition: 'width 0.5s ease',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            {loadingReport && (
+              <RefreshCw size={14} className="spin" color="var(--primary)" />
+            )}
           </div>
 
-          {/* Spending by Category */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <PieChart size={18} color="var(--warning)" />
-              Phân bổ chi tiêu theo danh mục (Tháng {currentMonth.month})
-            </h3>
-            {categoryBreakdown.items.length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
-                Chưa có phát sinh chi tiêu trong tháng này
+          {categoriesList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              Không có dữ liệu chi tiêu trong khoảng thời gian đã chọn.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                alignItems: 'center',
+                gap: '20px',
+              }}
+            >
+              {/* SVG Interactive Donut Chart */}
+              <div style={{ display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                <svg width="260" height="260" viewBox="0 0 260 260">
+                  {donutSlices.map((slice: any, idx: number) => {
+                    const isHovered = hoveredSlice?.name === slice.name;
+                    return (
+                      <path
+                        key={idx}
+                        d={slice.pathData}
+                        fill={slice.color}
+                        stroke="#fff"
+                        strokeWidth={isHovered ? '3' : '1.5'}
+                        style={{
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          opacity: hoveredSlice && !isHovered ? 0.45 : 1,
+                          transformOrigin: '130px 130px',
+                          transform: isHovered ? 'scale(1.03)' : 'scale(1)',
+                        }}
+                        onMouseEnter={() =>
+                          setHoveredSlice({
+                            name: slice.name,
+                            amount: slice.amount,
+                            percentage: slice.percentage,
+                            color: slice.color,
+                          })
+                        }
+                        onMouseLeave={() => setHoveredSlice(null)}
+                      />
+                    );
+                  })}
+                </svg>
+
+                {/* Center Hole Text Overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    pointerEvents: 'none',
+                    width: '120px',
+                  }}
+                >
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    {hoveredSlice ? hoveredSlice.name : 'Tổng chi'}
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: hoveredSlice ? hoveredSlice.color : 'var(--text-primary)', marginTop: '2px' }}>
+                    {formatVND(hoveredSlice ? hoveredSlice.amount : totalExpenseAmount)}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700, marginTop: '1px' }}>
+                    {hoveredSlice ? `${hoveredSlice.percentage}%` : `${categoriesList.length} hạng mục`}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {categoryBreakdown.items.map((cat) => (
-                  <div key={cat.id} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+              {/* Top Categories Legend */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto' }}>
+                {categoriesList.map((cat: any) => {
+                  const isHovered = hoveredSlice?.name === cat.name;
+                  return (
+                    <div
+                      key={cat.id}
+                      onMouseEnter={() =>
+                        setHoveredSlice({
+                          name: cat.name,
+                          amount: cat.amount,
+                          percentage: cat.percentage,
+                          color: cat.color,
+                        })
+                      }
+                      onMouseLeave={() => setHoveredSlice(null)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 8px',
+                        borderRadius: '8px',
+                        background: isHovered ? 'var(--bg-input)' : 'transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <div
                           style={{
                             width: '10px',
                             height: '10px',
                             borderRadius: '50%',
-                            background: cat.color || '#94a3b8',
+                            background: cat.color,
+                            flexShrink: 0,
                           }}
                         />
-                        <span style={{ fontWeight: 600 }}>{cat.name}</span>
+                        <span
+                          style={{
+                            fontSize: '12.5px',
+                            fontWeight: isHovered ? 700 : 500,
+                            color: 'var(--text-primary)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {cat.name}
+                        </span>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '8px' }}>
+                        <strong style={{ fontSize: '12px' }}>{formatVND(cat.amount)}</strong>{' '}
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({cat.percentage}%)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BAR CHART: Biểu đồ cột xếp hạng Top chi tiêu nhiều nhất */}
+        <div className="glass-card" style={{ padding: '20px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <BarChart3 size={18} color="var(--expense)" />
+            Biểu đồ cột: Xếp hạng tiêu hao lớn nhất
+          </h3>
+
+          {categoriesList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              Không có dữ liệu chi tiêu.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {categoriesList.slice(0, 7).map((cat: any, idx: number) => {
+                const maxAmount = categoriesList[0]?.amount || 1;
+                const barWidth = Math.max(5, Math.min(100, (cat.amount / maxAmount) * 100));
+
+                return (
+                  <div key={cat.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', width: '16px' }}>
+                          #{idx + 1}
+                        </span>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color }} />
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cat.name}</span>
                       </div>
                       <div>
                         <strong>{formatVND(cat.amount)}</strong>{' '}
-                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>({cat.percentage}%)</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({cat.percentage}%)</span>
                       </div>
                     </div>
-                    <div style={{ height: '6px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+
+                    {/* Animated Bar with gradient */}
+                    <div style={{ height: '8px', background: 'var(--bg-input)', borderRadius: '6px', overflow: 'hidden' }}>
                       <div
                         style={{
-                          width: `${Math.min(cat.percentage, 100)}%`,
-                          background: cat.color || 'var(--primary)',
+                          width: `${barWidth}%`,
+                          background: `linear-gradient(90deg, ${cat.color}, ${cat.color}dd)`,
                           height: '100%',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
+                          transition: 'width 0.4s ease',
                         }}
                       />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Column: Budgets & Obligations & Savings Target */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Monthly Budgets Progress */}
-          <div className="glass-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Clock size={18} color="var(--primary)" />
-                Tiến độ ngân sách chi tiêu
-              </h3>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Đã dùng {formatVND(budgetsSummary.totalSpent)} / {formatVND(budgetsSummary.totalLimit)}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {budgetsSummary.items.map((b) => (
-                <div key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 600 }}>{b.name}</span>
-                      {b.alertLevel === 'CRITICAL' && (
-                        <span className="badge badge-expense">Vượt 100%</span>
-                      )}
-                      {b.alertLevel === 'WARNING' && (
-                        <span className="badge badge-warning">Cảnh báo 90%</span>
-                      )}
-                      {b.alertLevel === 'INFO' && (
-                        <span className="badge badge-neutral">70%</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>{formatVND(b.spentAmount)}</strong> / {formatVND(b.limitAmount)}
-                    </div>
-                  </div>
-                  <div style={{ height: '6px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${Math.min(b.percentageUsed, 100)}%`,
-                        background:
-                          b.alertLevel === 'CRITICAL'
-                            ? 'var(--expense)'
-                            : b.alertLevel === 'WARNING'
-                            ? 'var(--warning)'
-                            : 'var(--primary)',
-                        height: '100%',
-                        borderRadius: '4px',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Upcoming Obligations (Rent, Salary, etc.) */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} color="var(--primary)" />
-              Khoản cố định & Nghĩa vụ sắp tới
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {upcomingObligations.map((item) => {
-                const isFulfilled = item.isFulfilledThisMonth;
-                const bg = isFulfilled
-                  ? '#ecfdf5'
-                  : item.isObligation
-                  ? 'rgba(244, 63, 94, 0.05)'
-                  : 'rgba(16, 185, 129, 0.05)';
-                const border = isFulfilled
-                  ? '1px solid #a7f3d0'
-                  : `1px solid ${item.isObligation ? 'rgba(244, 63, 94, 0.15)' : 'rgba(16, 185, 129, 0.15)'}`;
-                const textColor = isFulfilled
-                  ? '#065f46'
-                  : item.isObligation
-                  ? 'var(--expense)'
-                  : 'var(--income)';
-
-                return (
-                  <div
-                    key={item.id}
-                    style={{
-                      padding: '12px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      background: bg,
-                      border: border,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {item.name}
-                        {isFulfilled && (
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              color: '#059669',
-                              background: '#d1fae5',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            <CheckCircle2 size={11} /> Đã ghi nhận
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '11px', color: isFulfilled ? '#047857' : 'var(--text-muted)', marginTop: '2px' }}>
-                        {isFulfilled
-                          ? `Đã ${item.isObligation ? 'thanh toán' : 'nhận'} ${item.fulfilledDate ? formatDate(item.fulfilledDate) : 'tháng này'} • Kỳ tới: còn ${item.daysRemaining} ngày`
-                          : `Hạn: còn ${item.daysRemaining} ngày (${item.isObligation ? 'Nghĩa vụ bắt buộc' : 'Dự kiến'})`}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: '14px',
-                        color: textColor,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {item.isObligation ? '-' : '+'}
-                      {formatVND(item.fulfilledAmount || item.amount)}
                     </div>
                   </div>
                 );
               })}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* 4. Monthly Trend Bar Chart: Biểu đồ cột so sánh Thu vs Chi (6 tháng gần nhất) */}
+      <div className="glass-card" style={{ padding: '20px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <TrendingUp size={18} color="var(--primary)" />
+          Biểu đồ cột: So sánh Thu nhập & Chi tiêu qua các tháng
+        </h3>
+
+        {cashFlowHistory.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
+            Chưa có đủ lịch sử dữ liệu các tháng.
           </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${cashFlowHistory.length}, 1fr)`,
+                gap: '12px',
+                alignItems: 'flex-end',
+                minHeight: '180px',
+                paddingTop: '20px',
+                borderBottom: '1px solid var(--border-subtle)',
+                paddingBottom: '10px',
+              }}
+            >
+              {cashFlowHistory.map((item, idx) => {
+                const maxVal = Math.max(
+                  ...cashFlowHistory.map((h) => Math.max(h.income, h.expense, 1000000))
+                );
+                const incHeight = Math.max(4, (item.income / maxVal) * 140);
+                const expHeight = Math.max(4, (item.expense / maxVal) * 140);
 
-          {/* Personal Savings Target (60M target) */}
-          <div className="glass-card" style={{ background: 'linear-gradient(145deg, #ffffff, #f5f3ff)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} color="#facc15" />
-                Mục tiêu tích lũy cá nhân
-              </h3>
-              <span className="badge badge-warning">Hạn: 10/03/2027</span>
-            </div>
-
-            {savingsGoals.map((g) => (
-              <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{g.name}</div>
-                  <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {formatVND(g.currentAmount)}{' '}
-                    <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                      / {formatVND(g.targetAmount)}
+                return (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                    {/* Dual Bars: Income vs Expense */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '140px' }}>
+                      {/* Income Column */}
+                      <div
+                        title={`Thu: ${formatVND(item.income)}`}
+                        style={{
+                          width: '18px',
+                          height: `${incHeight}px`,
+                          background: 'linear-gradient(180deg, #10b981 0%, #059669 100%)',
+                          borderRadius: '4px 4px 0 0',
+                          transition: 'height 0.4s ease',
+                          cursor: 'pointer',
+                        }}
+                      />
+                      {/* Expense Column */}
+                      <div
+                        title={`Chi: ${formatVND(item.expense)}`}
+                        style={{
+                          width: '18px',
+                          height: `${expHeight}px`,
+                          background: 'linear-gradient(180deg, #f43f5e 0%, #e11d48 100%)',
+                          borderRadius: '4px 4px 0 0',
+                          transition: 'height 0.4s ease',
+                          cursor: 'pointer',
+                        }}
+                      />
+                    </div>
+                    {/* Month label */}
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      {item.monthLabel}
+                    </span>
+                    {/* Net indicator */}
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        color: item.net >= 0 ? 'var(--income)' : 'var(--expense)',
+                      }}
+                    >
+                      {item.net >= 0 ? '+' : ''}{Math.round(item.net / 1000000)}Tr
                     </span>
                   </div>
-                </div>
+                );
+              })}
+            </div>
 
-                <div style={{ height: '8px', background: 'var(--bg-input)', borderRadius: '6px', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width: `${Math.min(g.percentageAchieved, 100)}%`,
-                      background: 'linear-gradient(90deg, #6366f1, #10b981)',
-                      height: '100%',
-                      borderRadius: '6px',
-                    }}
-                  />
-                </div>
+            {/* Legend for monthly chart */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} />
+                <span>Tiền vào (Thu nhập)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#e11d48' }} />
+                <span>Tiền ra (Chi tiêu)</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
+      {/* 5. Detailed Category Table with Integrated Budget Info */}
+      <div className="glass-card" style={{ padding: '22px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+              Bảng Chi Tiết Phân Bổ Từng Danh Mục
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+              Kỳ từ {formatDateOnly(startDate)} đến {formatDateOnly(endDate)}
+            </p>
+          </div>
+
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('budgets')}
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <span>Xem quản lý ngân sách</span>
+              <ArrowRight size={13} />
+            </button>
+          )}
+        </div>
+
+        {categoriesList.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '13px' }}>
+            Không có dữ liệu trong khoảng thời gian này.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {categoriesList.map((cat: any) => {
+              const hasBudget = cat.budgetAmount && cat.budgetAmount > 0;
+              return (
                 <div
+                  key={cat.id}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '10px',
-                    background: 'var(--bg-input)',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '12px',
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
                   }}
                 >
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Cần tích lũy thêm:</span>
-                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
-                      {formatVND(g.remainingAmount)}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: cat.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {cat.name}
+                        </div>
+                        {cat.txCount > 0 && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {cat.txCount} giao dịch • Bình quân {formatVND(cat.dailyAverage)}/ngày
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '14.5px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {formatVND(cat.amount)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {cat.percentage}% tổng chi
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)' }}>Mỗi tháng cần dành:</span>
-                    <div style={{ fontWeight: 700, color: '#eab308', marginTop: '2px' }}>
-                      ~{formatVND(g.monthlyRequiredSavings)}/tháng
+
+                  {/* Integrated Budget indicator if set */}
+                  {hasBudget && (
+                    <div style={{ marginTop: '2px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                        <span>Hạn mức: {formatVND(cat.budgetAmount)}</span>
+                        <span style={{ fontWeight: 700, color: cat.percentOfBudget > 100 ? 'var(--expense)' : 'var(--income)' }}>
+                          {cat.percentOfBudget > 100 ? `Vượt ${cat.percentOfBudget}%` : `Đã dùng ${cat.percentOfBudget}%`}
+                        </span>
+                      </div>
+                      <div style={{ height: '5px', background: 'var(--bg-input)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${Math.min(cat.percentOfBudget, 100)}%`,
+                            background: cat.percentOfBudget > 100 ? 'var(--expense)' : cat.percentOfBudget >= 80 ? 'var(--warning)' : 'var(--primary)',
+                            height: '100%',
+                            borderRadius: '4px',
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

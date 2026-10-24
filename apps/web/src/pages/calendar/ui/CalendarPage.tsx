@@ -517,9 +517,9 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                   if (netAmt !== 0) {
                     badgeText = formatCompactVND(netAmt, true);
                     badgeColor = netAmt > 0 ? 'var(--income)' : 'var(--expense)';
-                  } else if (inAmt > 0) {
-                    badgeText = formatCompactVND(inAmt, true);
-                    badgeColor = 'var(--income)';
+                  } else if (inAmt > 0 || outAmt > 0) {
+                    badgeText = '0';
+                    badgeColor = 'var(--text-muted)';
                   }
                 }
 

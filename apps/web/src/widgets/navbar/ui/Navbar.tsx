@@ -36,7 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSyncing,
 }) => {
   const navItems = [
-    { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Báo cáo', icon: BarChart3 },
     { id: 'transactions', label: 'Giao dịch', icon: Receipt },
     { id: 'budgets', label: 'Ngân sách', icon: PieChart },
     { id: 'analytics', label: 'Dự báo AI', icon: Sparkles },

@@ -38,6 +38,19 @@ export interface CategoryReportItem {
   remainingBudget: number | null;
   percentOfBudget: number;
   status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET';
+  isDebt?: boolean;
+}
+
+export function isDebtExpenseCategory(name?: string | null): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase().trim();
+  return n === 'cho vay' || n.includes('cho vay') || n.includes('cho mượn');
+}
+
+export function isDebtIncomeCategory(name?: string | null): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase().trim();
+  return n === 'thu hồi nợ' || n.includes('thu hồi nợ') || n.includes('thu nợ') || n.includes('đòi nợ');
 }
 
 export interface ForecastResponse {
@@ -62,6 +75,10 @@ export interface ForecastResponse {
     txCount: number;
     totalIncome: number;
     totalExpense: number;
+    livingExpense?: number;
+    livingIncome?: number;
+    debtLentTotal?: number;
+    debtRecoveredTotal?: number;
     netBurn: number;
     dailyExpenseAvg: number;
     dailyIncomeAvg: number;
@@ -382,22 +399,38 @@ export class AnalyticsService {
       },
     });
 
-    // 4. Compute Totals & Categorical Breakdown
+    // 4. Compute Totals & Categorical Breakdown (Separating living expenses vs debt/loans)
     let totalIncome = new Decimal(0);
     let totalExpense = new Decimal(0);
-    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number }>();
+    let livingIncome = new Decimal(0);
+    let livingExpense = new Decimal(0);
+    let debtLentTotal = new Decimal(0);
+    let debtRecoveredTotal = new Decimal(0);
+
+    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number; isDebt: boolean }>();
     const anomalies: any[] = [];
 
     for (const tx of transactions) {
       const amt = new Decimal(tx.amount.toString());
+      const catId = tx.categoryId || 'uncategorized';
+      const catName = tx.category?.name || 'Chưa phân loại';
+      const catColor = tx.category?.color || '#64748b';
+
       if (tx.direction === TransactionDirection.INCOME) {
         totalIncome = totalIncome.plus(amt);
+        if (isDebtIncomeCategory(catName)) {
+          debtRecoveredTotal = debtRecoveredTotal.plus(amt);
+        } else {
+          livingIncome = livingIncome.plus(amt);
+        }
       } else if (tx.direction === TransactionDirection.EXPENSE) {
         totalExpense = totalExpense.plus(amt);
-
-        const catId = tx.categoryId || 'uncategorized';
-        const catName = tx.category?.name || 'Chưa phân loại';
-        const catColor = tx.category?.color || '#64748b';
+        const isDebt = isDebtExpenseCategory(catName);
+        if (isDebt) {
+          debtLentTotal = debtLentTotal.plus(amt);
+        } else {
+          livingExpense = livingExpense.plus(amt);
+        }
 
         if (!categoryMap.has(catId)) {
           categoryMap.set(catId, {
@@ -406,6 +439,7 @@ export class AnalyticsService {
             color: catColor,
             amount: new Decimal(0),
             count: 0,
+            isDebt,
           });
         }
         const existing = categoryMap.get(catId)!;
@@ -419,6 +453,7 @@ export class AnalyticsService {
             description: tx.description,
             date: tx.transactionDate.toISOString().slice(0, 10),
             categoryName: catName,
+            isDebt,
           });
         }
       }
@@ -426,10 +461,13 @@ export class AnalyticsService {
 
     const totalExpenseNum = totalExpense.toNumber();
     const totalIncomeNum = totalIncome.toNumber();
-    const netBurnNum = totalExpense.minus(totalIncome).toNumber();
+    const livingExpenseNum = livingExpense.toNumber();
+    const livingIncomeNum = livingIncome.toNumber();
+    const netBurnNum = livingExpense.minus(livingIncome).toNumber();
 
-    const dailyExpenseAvg = Math.round(totalExpenseNum / analysisDays);
-    const dailyIncomeAvg = Math.round(totalIncomeNum / analysisDays);
+    // Burn rate reflects REAL consumer/living expenses, excluding lent loans
+    const dailyExpenseAvg = Math.round(livingExpenseNum / analysisDays);
+    const dailyIncomeAvg = Math.round(livingIncomeNum / analysisDays);
     const dailyNetBurnAvg = Math.max(0, Math.round(netBurnNum / analysisDays));
 
     const categoriesList = Array.from(categoryMap.values())
@@ -438,8 +476,9 @@ export class AnalyticsService {
         name: c.name,
         color: c.color,
         amount: c.amount.toNumber(),
-        percent: totalExpenseNum > 0 ? Math.round((c.amount.toNumber() / totalExpenseNum) * 100) : 0,
+        percent: livingExpenseNum > 0 ? Math.round((c.amount.toNumber() / (c.isDebt ? totalExpenseNum : livingExpenseNum)) * 100) : 0,
         count: c.count,
+        isDebt: c.isDebt,
       }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -607,14 +646,14 @@ export class AnalyticsService {
 
     let anomalyTotal = new Decimal(0);
     for (const a of anomalies) {
-      if (a.categoryName === 'Cho vay' || a.amount >= 500000) {
+      if (!a.isDebt && a.amount >= 500000) {
         anomalyTotal = anomalyTotal.plus(a.amount);
       }
     }
-    const regularExpense = Decimal.max(0, totalExpense.minus(anomalyTotal)).toNumber();
+    const regularExpense = Decimal.max(0, livingExpense.minus(anomalyTotal)).toNumber();
     const optimizedDailyBurn = Math.max(
       100000,
-      Math.round(Math.max(0, regularExpense - totalIncomeNum) / analysisDays),
+      Math.round(Math.max(0, regularExpense - livingIncomeNum) / analysisDays),
     );
     const optimizedRegularExpense = optimizedDailyBurn * forecastDays;
     const optimizedProjectedExpense = optimizedRegularExpense + totalUpcomingExpenses;
@@ -644,6 +683,10 @@ export class AnalyticsService {
         txCount: transactions.length,
         totalIncome: totalIncomeNum,
         totalExpense: totalExpenseNum,
+        livingExpense: livingExpenseNum,
+        livingIncome: livingIncomeNum,
+        debtLentTotal: debtLentTotal.toNumber(),
+        debtRecoveredTotal: debtRecoveredTotal.toNumber(),
         netBurn: netBurnNum,
         dailyExpenseAvg,
         dailyIncomeAvg,
@@ -707,6 +750,10 @@ export class AnalyticsService {
         txCount: transactions.length,
         totalIncome: totalIncomeNum,
         totalExpense: totalExpenseNum,
+        livingExpense: livingExpenseNum,
+        livingIncome: livingIncomeNum,
+        debtLentTotal: debtLentTotal.toNumber(),
+        debtRecoveredTotal: debtRecoveredTotal.toNumber(),
         netBurn: netBurnNum,
         dailyExpenseAvg,
         dailyIncomeAvg,
@@ -894,19 +941,35 @@ export class AnalyticsService {
 
     let totalIncome = new Decimal(0);
     let totalExpense = new Decimal(0);
-    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number }>();
+    let livingIncome = new Decimal(0);
+    let livingExpense = new Decimal(0);
+    let debtLentTotal = new Decimal(0);
+    let debtRecoveredTotal = new Decimal(0);
+
+    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number; isDebt: boolean }>();
     const anomalies: any[] = [];
 
     for (const tx of transactions) {
       const amt = new Decimal(tx.amount.toString());
+      const catId = tx.categoryId || 'uncategorized';
+      const catName = tx.category?.name || 'Chưa phân loại';
+      const catColor = tx.category?.color || '#64748b';
+
       if (tx.direction === TransactionDirection.INCOME) {
         totalIncome = totalIncome.plus(amt);
+        if (isDebtIncomeCategory(catName)) {
+          debtRecoveredTotal = debtRecoveredTotal.plus(amt);
+        } else {
+          livingIncome = livingIncome.plus(amt);
+        }
       } else if (tx.direction === TransactionDirection.EXPENSE) {
         totalExpense = totalExpense.plus(amt);
-
-        const catId = tx.categoryId || 'uncategorized';
-        const catName = tx.category?.name || 'Chưa phân loại';
-        const catColor = tx.category?.color || '#64748b';
+        const isDebt = isDebtExpenseCategory(catName);
+        if (isDebt) {
+          debtLentTotal = debtLentTotal.plus(amt);
+        } else {
+          livingExpense = livingExpense.plus(amt);
+        }
 
         if (!categoryMap.has(catId)) {
           categoryMap.set(catId, {
@@ -915,6 +978,7 @@ export class AnalyticsService {
             color: catColor,
             amount: new Decimal(0),
             count: 0,
+            isDebt,
           });
         }
         const existing = categoryMap.get(catId)!;
@@ -928,6 +992,7 @@ export class AnalyticsService {
             description: tx.description,
             date: tx.transactionDate.toISOString().slice(0, 10),
             categoryName: catName,
+            isDebt,
           });
         }
       }
@@ -935,10 +1000,12 @@ export class AnalyticsService {
 
     const totalExpenseNum = totalExpense.toNumber();
     const totalIncomeNum = totalIncome.toNumber();
-    const netBurnNum = totalExpense.minus(totalIncome).toNumber();
+    const livingExpenseNum = livingExpense.toNumber();
+    const livingIncomeNum = livingIncome.toNumber();
+    const netBurnNum = livingExpense.minus(livingIncome).toNumber();
 
-    const dailyExpenseAvg = Math.round(totalExpenseNum / analysisDays);
-    const dailyIncomeAvg = Math.round(totalIncomeNum / analysisDays);
+    const dailyExpenseAvg = Math.round(livingExpenseNum / analysisDays);
+    const dailyIncomeAvg = Math.round(livingIncomeNum / analysisDays);
     const dailyNetBurnAvg = Math.max(0, Math.round(netBurnNum / analysisDays));
 
     const categoriesList = Array.from(categoryMap.values())
@@ -947,8 +1014,9 @@ export class AnalyticsService {
         name: c.name,
         color: c.color,
         amount: c.amount.toNumber(),
-        percent: totalExpenseNum > 0 ? Math.round((c.amount.toNumber() / totalExpenseNum) * 100) : 0,
+        percent: livingExpenseNum > 0 ? Math.round((c.amount.toNumber() / (c.isDebt ? totalExpenseNum : livingExpenseNum)) * 100) : 0,
         count: c.count,
+        isDebt: c.isDebt,
       }))
       .sort((a, b) => b.amount - a.amount);
 
@@ -1062,6 +1130,10 @@ export class AnalyticsService {
         txCount: transactions.length,
         totalIncome: totalIncomeNum,
         totalExpense: totalExpenseNum,
+        livingExpense: livingExpenseNum,
+        livingIncome: livingIncomeNum,
+        debtLentTotal: debtLentTotal.toNumber(),
+        debtRecoveredTotal: debtRecoveredTotal.toNumber(),
         netBurn: netBurnNum,
         dailyExpenseAvg,
         dailyIncomeAvg,

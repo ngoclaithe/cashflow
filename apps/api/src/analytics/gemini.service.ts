@@ -118,11 +118,12 @@ THÔNG TIN TÀI KHOẢN VÀ THỜI GIAN:
 
 DỮ LIỆU THỰC TẾ TRONG KHOẢNG PHÂN TÍCH (${ctx.timeframe.analysisDays} NGÀY):
 - Tổng số giao dịch: ${ctx.stats.txCount} giao dịch
-- Tổng chi ra (Expense): ${ctx.stats.totalExpense.toLocaleString('vi-VN')} VND (bình quân ${ctx.stats.dailyExpenseAvg.toLocaleString('vi-VN')} VND/ngày)
-- Tổng thu vào (Income): ${ctx.stats.totalIncome.toLocaleString('vi-VN')} VND (bình quân ${ctx.stats.dailyIncomeAvg.toLocaleString('vi-VN')} VND/ngày)
-- Thâm hụt ròng (Net Burn = Chi - Thu): ${ctx.stats.netBurn.toLocaleString('vi-VN')} VND (bình quân tiêu hao ròng: ${ctx.stats.dailyNetBurnAvg.toLocaleString('vi-VN')} VND/ngày)
+- Tổng chi tiêu sinh hoạt thực tế (Expense - ĐÃ LOẠI TRỪ CÁC KHOẢN CHO VAY): ${(ctx.stats.livingExpense ?? ctx.stats.totalExpense).toLocaleString('vi-VN')} VND (bình quân tiêu hao sinh hoạt thực tế ${ctx.stats.dailyExpenseAvg.toLocaleString('vi-VN')} VND/ngày)
+- Tổng thu nhập thực tế (Income - ĐÃ LOẠI TRỪ THU HỒI NỢ): ${(ctx.stats.livingIncome ?? ctx.stats.totalIncome).toLocaleString('vi-VN')} VND (bình quân ${ctx.stats.dailyIncomeAvg.toLocaleString('vi-VN')} VND/ngày)
+${ctx.stats.debtLentTotal > 0 ? `- Tổng khoản tiền Cho vay trong kỳ (TÁCH RIÊNG CÔNG NỢ, KHÔNG TÍNH CHI TIÊU SINH HOẠT): ${ctx.stats.debtLentTotal.toLocaleString('vi-VN')} VND\n` : ''}${ctx.stats.debtRecoveredTotal > 0 ? `- Tổng khoản Thu hồi nợ trong kỳ (TÁCH RIÊNG CÔNG NỢ, KHÔNG TÍNH THU NHẬP SINH HOẠT): ${ctx.stats.debtRecoveredTotal.toLocaleString('vi-VN')} VND\n` : ''}- Thâm hụt ròng sinh hoạt (Net Burn): ${ctx.stats.netBurn.toLocaleString('vi-VN')} VND (bình quân tiêu hao ròng: ${ctx.stats.dailyNetBurnAvg.toLocaleString('vi-VN')} VND/ngày)
 - Hạn mức chi tiêu sinh hoạt an toàn tối đa mỗi ngày tới ngày mục tiêu (sau khi đã tính các khoản chi cố định sắp tới): ${ctx.stats.safeDailySpendingAllowance.toLocaleString('vi-VN')} VND/ngày
 - Thu nhập dự kiến nhận thêm trước ngày mục tiêu: ${ctx.expectedIncome > 0 ? `${ctx.expectedIncome.toLocaleString('vi-VN')} VND` : '0 VND'}
+* NGUYÊN TẮC QUAN TRỌNG: Khoản 'Cho vay' là luân chuyển tài sản công nợ tạm thời, TUYỆT ĐỐI KHÔNG coi là chi tiêu sinh hoạt hay tốc độ đốt tiền tiêu dùng. Thu hồi nợ cũng không được tính là thu nhập đều đặn.
 
 CÁC KHOẢN DỰ KIẾN SẮP TỚI NGƯỜI DÙNG ĐÃ CHỌN (UPCOMING PLANNED ITEMS):
 * Khoản chi dự kiến (Định kỳ, hóa đơn, sự kiện sắp tới): Tổng cộng: ${ctx.upcoming?.totalExpenses?.toLocaleString('vi-VN') || 0} VND
