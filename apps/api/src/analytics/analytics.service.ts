@@ -25,6 +25,16 @@ export interface AnalyzeOptions {
   upcomingItems?: UpcomingItem[];
 }
 
+export interface MarkdownReportOptions {
+  startDate?: string;
+  endDate?: string;
+  includeTransactions?: boolean;
+  includeUpcoming?: boolean;
+  includeSavings?: boolean;
+  includePrompt?: boolean;
+  targetDate?: string;
+}
+
 export interface CategoryReportItem {
   id: string;
   name: string;
@@ -50,7 +60,12 @@ export function isDebtExpenseCategory(name?: string | null): boolean {
 export function isDebtIncomeCategory(name?: string | null): boolean {
   if (!name) return false;
   const n = name.toLowerCase().trim();
-  return n === 'thu hồi nợ' || n.includes('thu hồi nợ') || n.includes('thu nợ') || n.includes('đòi nợ');
+  return (
+    n === 'thu hồi nợ' ||
+    n.includes('thu hồi nợ') ||
+    n.includes('thu nợ') ||
+    n.includes('đòi nợ')
+  );
 }
 
 export interface ForecastResponse {
@@ -187,14 +202,16 @@ export class AnalyticsService {
     const currentMonth = now.getMonth(); // 0-indexed
 
     const pad = (n: number) => n.toString().padStart(2, '0');
-    const toIsoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const toIsoDate = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
     // Primary account
     const accounts = await this.prisma.account.findMany({
       where: { userId, isActive: true },
     });
-    const primaryAccount =
-      accounts.find((a) => a.accountNumber?.includes('1468651509999')) ||
+    const primaryAccount = accounts.find((a) =>
+      a.accountNumber?.includes('1468651509999'),
+    ) ||
       accounts[0] || {
         id: 'default',
         displayName: 'MB Bank',
@@ -212,7 +229,9 @@ export class AnalyticsService {
       where: { userId, isActive: true },
     });
 
-    const recurringSalary = dbRecurring.find((r) => r.direction === TransactionDirection.INCOME);
+    const recurringSalary = dbRecurring.find(
+      (r) => r.direction === TransactionDirection.INCOME,
+    );
     const latestSalaryTx = await this.prisma.transaction.findFirst({
       where: {
         userId,
@@ -225,8 +244,8 @@ export class AnalyticsService {
     const detectedSalaryAmount = recurringSalary
       ? Number(recurringSalary.amount)
       : latestSalaryTx
-      ? Number(latestSalaryTx.amount)
-      : 20300000;
+        ? Number(latestSalaryTx.amount)
+        : 20300000;
 
     // Default dates:
     let startD: Date;
@@ -255,7 +274,9 @@ export class AnalyticsService {
     let hasRentInDb = false;
     for (const r of dbRecurring) {
       if (r.direction === TransactionDirection.EXPENSE) {
-        const isRent = r.name.toLowerCase().includes('nhà') || r.name.toLowerCase().includes('phòng');
+        const isRent =
+          r.name.toLowerCase().includes('nhà') ||
+          r.name.toLowerCase().includes('phòng');
         if (isRent) hasRentInDb = true;
         const day = r.dayOfMonth || 5;
         const dueDate = `${currentYear}-${pad(rentMonth + 1)}-${pad(day)}`;
@@ -310,7 +331,10 @@ export class AnalyticsService {
   /**
    * Run comprehensive analysis, Category Budget Report, and AI projections
    */
-  async analyze(userId: string, options: AnalyzeOptions = {}): Promise<ForecastResponse> {
+  async analyze(
+    userId: string,
+    options: AnalyzeOptions = {},
+  ): Promise<ForecastResponse> {
     const now = new Date();
 
     // 1. Resolve Dates
@@ -343,7 +367,11 @@ export class AnalyticsService {
       targetD.setHours(23, 59, 59, 999);
     }
 
-    if (isNaN(startD.getTime()) || isNaN(endD.getTime()) || isNaN(targetD.getTime())) {
+    if (
+      isNaN(startD.getTime()) ||
+      isNaN(endD.getTime()) ||
+      isNaN(targetD.getTime())
+    ) {
       throw new BadRequestException('Ngày tháng cung cấp không hợp lệ');
     }
 
@@ -352,8 +380,14 @@ export class AnalyticsService {
     }
 
     const msPerDay = 1000 * 60 * 60 * 24;
-    const analysisDays = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / msPerDay));
-    const forecastDays = Math.max(1, Math.round((targetD.getTime() - endD.getTime()) / msPerDay));
+    const analysisDays = Math.max(
+      1,
+      Math.round((endD.getTime() - startD.getTime()) / msPerDay),
+    );
+    const forecastDays = Math.max(
+      1,
+      Math.round((targetD.getTime() - endD.getTime()) / msPerDay),
+    );
 
     // 2. Query Accounts
     const accounts = await this.prisma.account.findMany({
@@ -364,8 +398,9 @@ export class AnalyticsService {
       },
     });
 
-    const primaryAccount =
-      accounts.find((a) => a.accountNumber?.includes('1468651509999')) ||
+    const primaryAccount = accounts.find((a) =>
+      a.accountNumber?.includes('1468651509999'),
+    ) ||
       accounts[0] || {
         id: 'default',
         displayName: 'MB Bank',
@@ -375,9 +410,13 @@ export class AnalyticsService {
 
     let totalCashDecimal = new Decimal(0);
     for (const acc of accounts) {
-      totalCashDecimal = totalCashDecimal.plus(new Decimal(acc.balance.toString()));
+      totalCashDecimal = totalCashDecimal.plus(
+        new Decimal(acc.balance.toString()),
+      );
     }
-    const currentBalance = new Decimal(primaryAccount.balance.toString()).toNumber();
+    const currentBalance = new Decimal(
+      primaryAccount.balance.toString(),
+    ).toNumber();
     const totalCash = totalCashDecimal.toNumber();
 
     // 3. Query Transactions in the user's selected date range [startD, endD]
@@ -407,7 +446,17 @@ export class AnalyticsService {
     let debtLentTotal = new Decimal(0);
     let debtRecoveredTotal = new Decimal(0);
 
-    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number; isDebt: boolean }>();
+    const categoryMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        color: string;
+        amount: Decimal;
+        count: number;
+        isDebt: boolean;
+      }
+    >();
     const anomalies: any[] = [];
 
     for (const tx of transactions) {
@@ -476,7 +525,14 @@ export class AnalyticsService {
         name: c.name,
         color: c.color,
         amount: c.amount.toNumber(),
-        percent: livingExpenseNum > 0 ? Math.round((c.amount.toNumber() / (c.isDebt ? totalExpenseNum : livingExpenseNum)) * 100) : 0,
+        percent:
+          livingExpenseNum > 0
+            ? Math.round(
+                (c.amount.toNumber() /
+                  (c.isDebt ? totalExpenseNum : livingExpenseNum)) *
+                  100,
+              )
+            : 0,
         count: c.count,
         isDebt: c.isDebt,
       }))
@@ -494,7 +550,10 @@ export class AnalyticsService {
     for (const b of userBudgets) {
       const amt = Number(b.amount);
       if (b.categoryId) {
-        budgetMapByCategoryId.set(b.categoryId, (budgetMapByCategoryId.get(b.categoryId) || 0) + amt);
+        budgetMapByCategoryId.set(
+          b.categoryId,
+          (budgetMapByCategoryId.get(b.categoryId) || 0) + amt,
+        );
       }
       if (b.category?.name) {
         budgetMapByName.set(b.category.name.toLowerCase().trim(), amt);
@@ -516,7 +575,8 @@ export class AnalyticsService {
         0;
 
       const spent = cat.amount;
-      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' = 'NO_BUDGET';
+      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' =
+        'NO_BUDGET';
       let percentOfBudget = 0;
       let remainingBudget: number | null = null;
 
@@ -558,7 +618,8 @@ export class AnalyticsService {
       const bCatId = b.categoryId || b.id;
       const bCatName = b.category?.name || b.name;
       const alreadyIncluded = categoryReport.some(
-        (c) => c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
+        (c) =>
+          c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
       );
 
       if (!alreadyIncluded) {
@@ -585,7 +646,9 @@ export class AnalyticsService {
       totalBudget: totalBudgetSum,
       totalSpentInBudgeted: totalSpentInBudgetedSum,
       budgetUtilizationPercent:
-        totalBudgetSum > 0 ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100) : 0,
+        totalBudgetSum > 0
+          ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100)
+          : 0,
       categoriesOverBudget: categoriesOverBudgetCount,
       categoriesNearLimit: categoriesNearLimitCount,
       categoriesSafe: categoriesSafeCount,
@@ -603,10 +666,17 @@ export class AnalyticsService {
     });
 
     const latestSalary = recentSalaries[0];
-    const detectedSalaryAmount = latestSalary ? new Decimal(latestSalary.amount.toString()).toNumber() : 20300000;
-    const historicalSalaryDesc = latestSalary ? latestSalary.description : 'CT TNHH Phat trien nguon nhan luc Gina Viet Nam';
+    const detectedSalaryAmount = latestSalary
+      ? new Decimal(latestSalary.amount.toString()).toNumber()
+      : 20300000;
+    const historicalSalaryDesc = latestSalary
+      ? latestSalary.description
+      : 'CT TNHH Phat trien nguon nhan luc Gina Viet Nam';
 
-    const expectedIncome = options.expectedIncome !== undefined ? Number(options.expectedIncome) : detectedSalaryAmount;
+    const expectedIncome =
+      options.expectedIncome !== undefined
+        ? Number(options.expectedIncome)
+        : detectedSalaryAmount;
 
     // 7. Handle Upcoming Planned Items
     const rawUpcoming = options.upcomingItems || [];
@@ -633,15 +703,27 @@ export class AnalyticsService {
       }
     }
 
-    const reserveNeeded = Math.max(0, totalUpcomingExpenses - totalUpcomingIncomes);
+    const reserveNeeded = Math.max(
+      0,
+      totalUpcomingExpenses - totalUpcomingIncomes,
+    );
     const availableForLiving = Math.max(0, currentBalance - reserveNeeded);
-    const safeDailySpendingAllowance = Math.max(0, Math.round(availableForLiving / forecastDays));
+    const safeDailySpendingAllowance = Math.max(
+      0,
+      Math.round(availableForLiving / forecastDays),
+    );
 
     // 8. Calculate Projections
-    const baselineDailyBurn = dailyNetBurnAvg > 0 ? dailyNetBurnAvg : dailyExpenseAvg;
+    const baselineDailyBurn =
+      dailyNetBurnAvg > 0 ? dailyNetBurnAvg : dailyExpenseAvg;
     const baselineRegularExpense = baselineDailyBurn * forecastDays;
-    const baselineProjectedExpense = baselineRegularExpense + totalUpcomingExpenses;
-    const baselineBalanceBefore = currentBalance - baselineRegularExpense - totalUpcomingExpenses + totalUpcomingIncomes;
+    const baselineProjectedExpense =
+      baselineRegularExpense + totalUpcomingExpenses;
+    const baselineBalanceBefore =
+      currentBalance -
+      baselineRegularExpense -
+      totalUpcomingExpenses +
+      totalUpcomingIncomes;
     const baselineBalanceAfter = baselineBalanceBefore + expectedIncome;
 
     let anomalyTotal = new Decimal(0);
@@ -650,20 +732,38 @@ export class AnalyticsService {
         anomalyTotal = anomalyTotal.plus(a.amount);
       }
     }
-    const regularExpense = Decimal.max(0, livingExpense.minus(anomalyTotal)).toNumber();
+    const regularExpense = Decimal.max(
+      0,
+      livingExpense.minus(anomalyTotal),
+    ).toNumber();
     const optimizedDailyBurn = Math.max(
       100000,
       Math.round(Math.max(0, regularExpense - livingIncomeNum) / analysisDays),
     );
     const optimizedRegularExpense = optimizedDailyBurn * forecastDays;
-    const optimizedProjectedExpense = optimizedRegularExpense + totalUpcomingExpenses;
-    const optimizedBalanceBefore = currentBalance - optimizedRegularExpense - totalUpcomingExpenses + totalUpcomingIncomes;
+    const optimizedProjectedExpense =
+      optimizedRegularExpense + totalUpcomingExpenses;
+    const optimizedBalanceBefore =
+      currentBalance -
+      optimizedRegularExpense -
+      totalUpcomingExpenses +
+      totalUpcomingIncomes;
     const optimizedBalanceAfter = optimizedBalanceBefore + expectedIncome;
 
-    const conservativeDailyBurn = Math.max(500000, Math.round(baselineDailyBurn * 1.35));
+    const conservativeDailyBurn = Math.max(
+      500000,
+      Math.round(baselineDailyBurn * 1.35),
+    );
     const conservativeRegularExpense = conservativeDailyBurn * forecastDays;
-    const conservativeProjectedExpense = conservativeRegularExpense + totalUpcomingExpenses;
-    const conservativeBalanceBefore = Math.max(0, currentBalance - conservativeRegularExpense - totalUpcomingExpenses + totalUpcomingIncomes);
+    const conservativeProjectedExpense =
+      conservativeRegularExpense + totalUpcomingExpenses;
+    const conservativeBalanceBefore = Math.max(
+      0,
+      currentBalance -
+        conservativeRegularExpense -
+        totalUpcomingExpenses +
+        totalUpcomingIncomes,
+    );
     const conservativeBalanceAfter = conservativeBalanceBefore + expectedIncome;
 
     const context = {
@@ -777,7 +877,9 @@ export class AnalyticsService {
         amount: detectedSalaryAmount,
         description: historicalSalaryDesc,
         companyName: 'Gina Việt Nam',
-        lastReceivedDate: latestSalary ? latestSalary.transactionDate.toISOString().slice(0, 10) : '',
+        lastReceivedDate: latestSalary
+          ? latestSalary.transactionDate.toISOString().slice(0, 10)
+          : '',
       },
       projections: {
         baseline: {
@@ -842,7 +944,9 @@ export class AnalyticsService {
           updatedAt: new Date(),
         },
       });
-      this.logger.log(`Saved latest AI forecast result to DB for user ${userId}`);
+      this.logger.log(
+        `Saved latest AI forecast result to DB for user ${userId}`,
+      );
     } catch (err) {
       this.logger.error('Failed to save AI forecast result to DB', err);
     }
@@ -885,7 +989,10 @@ export class AnalyticsService {
         savedAt: setting.updatedAt,
       };
     } catch (err) {
-      this.logger.error('Failed to read latest AI forecast result from DB', err);
+      this.logger.error(
+        'Failed to read latest AI forecast result from DB',
+        err,
+      );
       return null;
     }
   }
@@ -894,7 +1001,11 @@ export class AnalyticsService {
    * Fast, real-time Category Budget Report for a selected historical period.
    * Does NOT call Gemini AI, calculates instantaneously from DB transactions & budgets.
    */
-  async getCategoryReport(userId: string, startDate?: string, endDate?: string) {
+  async getCategoryReport(
+    userId: string,
+    startDate?: string,
+    endDate?: string,
+  ) {
     const now = new Date();
     let startD: Date;
     let endD: Date;
@@ -920,7 +1031,10 @@ export class AnalyticsService {
     }
 
     const msPerDay = 1000 * 60 * 60 * 24;
-    const analysisDays = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / msPerDay));
+    const analysisDays = Math.max(
+      1,
+      Math.round((endD.getTime() - startD.getTime()) / msPerDay),
+    );
 
     const transactions = await this.prisma.transaction.findMany({
       where: {
@@ -946,7 +1060,17 @@ export class AnalyticsService {
     let debtLentTotal = new Decimal(0);
     let debtRecoveredTotal = new Decimal(0);
 
-    const categoryMap = new Map<string, { id: string; name: string; color: string; amount: Decimal; count: number; isDebt: boolean }>();
+    const categoryMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        color: string;
+        amount: Decimal;
+        count: number;
+        isDebt: boolean;
+      }
+    >();
     const anomalies: any[] = [];
 
     for (const tx of transactions) {
@@ -1014,7 +1138,14 @@ export class AnalyticsService {
         name: c.name,
         color: c.color,
         amount: c.amount.toNumber(),
-        percent: livingExpenseNum > 0 ? Math.round((c.amount.toNumber() / (c.isDebt ? totalExpenseNum : livingExpenseNum)) * 100) : 0,
+        percent:
+          livingExpenseNum > 0
+            ? Math.round(
+                (c.amount.toNumber() /
+                  (c.isDebt ? totalExpenseNum : livingExpenseNum)) *
+                  100,
+              )
+            : 0,
         count: c.count,
         isDebt: c.isDebt,
       }))
@@ -1031,7 +1162,10 @@ export class AnalyticsService {
     for (const b of userBudgets) {
       const amt = Number(b.amount);
       if (b.categoryId) {
-        budgetMapByCategoryId.set(b.categoryId, (budgetMapByCategoryId.get(b.categoryId) || 0) + amt);
+        budgetMapByCategoryId.set(
+          b.categoryId,
+          (budgetMapByCategoryId.get(b.categoryId) || 0) + amt,
+        );
       }
       if (b.category?.name) {
         budgetMapByName.set(b.category.name.toLowerCase().trim(), amt);
@@ -1053,7 +1187,8 @@ export class AnalyticsService {
         0;
 
       const spent = cat.amount;
-      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' = 'NO_BUDGET';
+      let status: 'SAFE' | 'NEAR_LIMIT' | 'OVER_BUDGET' | 'NO_BUDGET' =
+        'NO_BUDGET';
       let percentOfBudget = 0;
       let remainingBudget: number | null = null;
 
@@ -1095,7 +1230,8 @@ export class AnalyticsService {
       const bCatId = b.categoryId || b.id;
       const bCatName = b.category?.name || b.name;
       const alreadyIncluded = categoryReport.some(
-        (c) => c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
+        (c) =>
+          c.id === bCatId || c.name.toLowerCase() === bCatName.toLowerCase(),
       );
 
       if (!alreadyIncluded) {
@@ -1144,7 +1280,9 @@ export class AnalyticsService {
         totalBudget: totalBudgetSum,
         totalSpentInBudgeted: totalSpentInBudgetedSum,
         budgetUtilizationPercent:
-          totalBudgetSum > 0 ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100) : 0,
+          totalBudgetSum > 0
+            ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100)
+            : 0,
         categoriesOverBudget: categoriesOverBudgetCount,
         categoriesNearLimit: categoriesNearLimitCount,
         categoriesSafe: categoriesSafeCount,
@@ -1152,5 +1290,656 @@ export class AnalyticsService {
       anomalies,
     };
   }
-}
 
+  /**
+   * Generates a comprehensive, highly structured Markdown report for a given date range.
+   * Specially designed for external AI analysis (e.g., Claude 3.5 Sonnet, ChatGPT, DeepSeek).
+   */
+  async generateMarkdownReport(
+    userId: string,
+    options: MarkdownReportOptions = {},
+  ) {
+    const now = new Date();
+    let startD: Date;
+    let endD: Date;
+
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const toIsoDate = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const toVnDate = (d: Date) =>
+      `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const formatVND = (num: number) =>
+      `${Math.round(num).toLocaleString('vi-VN')} VND`;
+
+    if (options.startDate) {
+      startD = new Date(options.startDate);
+      startD.setHours(0, 0, 0, 0);
+    } else {
+      if (now.getDate() >= 10) {
+        startD = new Date(now.getFullYear(), now.getMonth(), 10);
+      } else {
+        startD = new Date(now);
+        startD.setDate(startD.getDate() - 7);
+      }
+      startD.setHours(0, 0, 0, 0);
+    }
+
+    if (options.endDate) {
+      endD = new Date(options.endDate);
+      endD.setHours(23, 59, 59, 999);
+    } else {
+      endD = new Date(now);
+    }
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const analysisDays = Math.max(
+      1,
+      Math.round((endD.getTime() - startD.getTime()) / msPerDay),
+    );
+    const startDateFormatted = toVnDate(startD);
+    const endDateFormatted = toVnDate(endD);
+    const nowFormatted = `${toVnDate(now)} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    // 1. Fetch User & Accounts
+    const [user, accounts, transactions, userBudgets, recurring, savings] =
+      await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, email: true },
+        }),
+        this.prisma.account.findMany({
+          where: { userId, isActive: true },
+          orderBy: { balance: 'desc' },
+        }),
+        this.prisma.transaction.findMany({
+          where: {
+            userId,
+            isInternalTransfer: false,
+            transactionDate: {
+              gte: startD,
+              lte: endD,
+            },
+          },
+          include: {
+            category: true,
+            account: true,
+          },
+          orderBy: {
+            transactionDate: 'desc',
+          },
+        }),
+        this.prisma.budget.findMany({
+          where: { userId, isActive: true },
+          include: { category: true },
+        }),
+        this.prisma.recurringTransaction.findMany({
+          where: { userId, isActive: true },
+          orderBy: { dayOfMonth: 'asc' },
+        }),
+        this.prisma.savingsGoal.findMany({
+          where: { userId },
+          orderBy: { targetDate: 'asc' },
+        }),
+      ]);
+
+    let totalCash = 0;
+    accounts.forEach((a) => {
+      totalCash += Number(a.balance);
+    });
+
+    // 2. Aggregate Transactions
+    let totalIncome = new Decimal(0);
+    let totalExpense = new Decimal(0);
+    let livingIncome = new Decimal(0);
+    let livingExpense = new Decimal(0);
+    let debtLentTotal = new Decimal(0);
+    let debtRecoveredTotal = new Decimal(0);
+
+    const categoryMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        amount: Decimal;
+        count: number;
+        isDebt: boolean;
+      }
+    >();
+    const anomalies: any[] = [];
+
+    for (const tx of transactions) {
+      const amt = new Decimal(tx.amount.toString());
+      const catId = tx.categoryId || 'uncategorized';
+      const catName = tx.category?.name || 'Chưa phân loại';
+
+      if (tx.direction === TransactionDirection.INCOME) {
+        totalIncome = totalIncome.plus(amt);
+        if (isDebtIncomeCategory(catName)) {
+          debtRecoveredTotal = debtRecoveredTotal.plus(amt);
+        } else {
+          livingIncome = livingIncome.plus(amt);
+        }
+      } else if (tx.direction === TransactionDirection.EXPENSE) {
+        totalExpense = totalExpense.plus(amt);
+        const isDebt = isDebtExpenseCategory(catName);
+        if (isDebt) {
+          debtLentTotal = debtLentTotal.plus(amt);
+        } else {
+          livingExpense = livingExpense.plus(amt);
+        }
+
+        if (!categoryMap.has(catId)) {
+          categoryMap.set(catId, {
+            id: catId,
+            name: catName,
+            amount: new Decimal(0),
+            count: 0,
+            isDebt,
+          });
+        }
+        const existing = categoryMap.get(catId)!;
+        existing.amount = existing.amount.plus(amt);
+        existing.count += 1;
+
+        if (amt.greaterThanOrEqualTo(200000)) {
+          anomalies.push({
+            id: tx.id,
+            amount: amt.toNumber(),
+            description: tx.description,
+            date: toVnDate(tx.transactionDate),
+            categoryName: catName,
+            accountName: tx.account?.displayName || 'Tài khoản',
+            counterparty: tx.counterparty || '',
+            isDebt,
+          });
+        }
+      }
+    }
+
+    const totalExpenseNum = totalExpense.toNumber();
+    const totalIncomeNum = totalIncome.toNumber();
+    const livingExpenseNum = livingExpense.toNumber();
+    const livingIncomeNum = livingIncome.toNumber();
+    const debtLentNum = debtLentTotal.toNumber();
+    const debtRecoveredNum = debtRecoveredTotal.toNumber();
+    const netBurnNum = livingExpense.minus(livingIncome).toNumber();
+    const netCashflowNum = totalIncome.minus(totalExpense).toNumber();
+
+    const dailyExpenseAvg = Math.round(livingExpenseNum / analysisDays);
+    const dailyIncomeAvg = Math.round(livingIncomeNum / analysisDays);
+    const dailyNetBurnAvg = Math.max(0, Math.round(netBurnNum / analysisDays));
+    const savingsRate =
+      livingIncomeNum > 0
+        ? Math.round(
+            ((livingIncomeNum - livingExpenseNum) / livingIncomeNum) * 100,
+          )
+        : 0;
+
+    // 3. Budgets & Categories
+    const budgetMapByCategoryId = new Map<string, number>();
+    const budgetMapByName = new Map<string, number>();
+
+    for (const b of userBudgets) {
+      const amt = Number(b.amount);
+      if (b.categoryId) {
+        budgetMapByCategoryId.set(
+          b.categoryId,
+          (budgetMapByCategoryId.get(b.categoryId) || 0) + amt,
+        );
+      }
+      if (b.category?.name) {
+        budgetMapByName.set(b.category.name.toLowerCase().trim(), amt);
+      }
+      budgetMapByName.set(b.name.toLowerCase().trim(), amt);
+    }
+
+    const categoriesList = Array.from(categoryMap.values())
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        amount: c.amount.toNumber(),
+        percent:
+          livingExpenseNum > 0
+            ? Math.round(
+                (c.amount.toNumber() /
+                  (c.isDebt ? totalExpenseNum : livingExpenseNum)) *
+                  100,
+              )
+            : 0,
+        count: c.count,
+        isDebt: c.isDebt,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    let totalBudgetSum = 0;
+    let totalSpentInBudgetedSum = 0;
+    let categoriesOverBudgetCount = 0;
+    let categoriesNearLimitCount = 0;
+    let categoriesSafeCount = 0;
+
+    const categoryRows: Array<{
+      name: string;
+      spent: number;
+      percentOfTotal: number;
+      txCount: number;
+      dailyAvg: number;
+      budgetAmount: number;
+      percentOfBudget: number;
+      remainingBudget: number | null;
+      status: string;
+      statusIcon: string;
+    }> = [];
+
+    for (const cat of categoriesList) {
+      const budgetAmount =
+        budgetMapByCategoryId.get(cat.id) ||
+        budgetMapByName.get(cat.name.toLowerCase().trim()) ||
+        0;
+
+      const spent = cat.amount;
+      let status = 'Chưa đặt ngân sách';
+      let statusIcon = '⚪';
+      let percentOfBudget = 0;
+      let remainingBudget: number | null = null;
+
+      if (budgetAmount > 0) {
+        totalBudgetSum += budgetAmount;
+        totalSpentInBudgetedSum += spent;
+        percentOfBudget = Math.round((spent / budgetAmount) * 100);
+        remainingBudget = Math.max(0, budgetAmount - spent);
+
+        if (percentOfBudget > 100) {
+          status = `Vượt ${percentOfBudget}%`;
+          statusIcon = '🔴';
+          categoriesOverBudgetCount++;
+        } else if (percentOfBudget >= 80) {
+          status = `Cận giới hạn (${percentOfBudget}%)`;
+          statusIcon = '🟡';
+          categoriesNearLimitCount++;
+        } else {
+          status = `An toàn (${percentOfBudget}%)`;
+          statusIcon = '🟢';
+          categoriesSafeCount++;
+        }
+      }
+
+      categoryRows.push({
+        name: cat.name,
+        spent,
+        percentOfTotal: cat.percent,
+        txCount: cat.count,
+        dailyAvg: Math.round(spent / analysisDays),
+        budgetAmount,
+        percentOfBudget,
+        remainingBudget,
+        status,
+        statusIcon,
+      });
+    }
+
+    // Include budgeted categories with 0 spent
+    for (const b of userBudgets) {
+      const bCatId = b.categoryId || b.id;
+      const bCatName = b.category?.name || b.name;
+      const alreadyIncluded = categoryRows.some(
+        (c) => c.name.toLowerCase() === bCatName.toLowerCase(),
+      );
+
+      if (!alreadyIncluded) {
+        const bAmt = Number(b.amount);
+        totalBudgetSum += bAmt;
+        categoriesSafeCount++;
+        categoryRows.push({
+          name: bCatName,
+          spent: 0,
+          percentOfTotal: 0,
+          txCount: 0,
+          dailyAvg: 0,
+          budgetAmount: bAmt,
+          percentOfBudget: 0,
+          remainingBudget: bAmt,
+          status: 'An toàn (0%)',
+          statusIcon: '🟢',
+        });
+      }
+    }
+
+    const budgetUtilizationPercent =
+      totalBudgetSum > 0
+        ? Math.round((totalSpentInBudgetedSum / totalBudgetSum) * 100)
+        : 0;
+
+    // 4. Construct Markdown Document
+    const lines: string[] = [];
+
+    lines.push(`# 📊 BÁO CÁO TÀI CHÍNH CÁ NHÂN & DÒNG TIỀN (CASHFLOW REPORT)`);
+    lines.push(
+      `> **Nền tảng**: Hệ thống Quản lý Tài chính Thông minh Cashflow`,
+    );
+    lines.push(
+      `> **Kỳ báo cáo**: Từ ngày ${startDateFormatted} đến ngày ${endDateFormatted} (${analysisDays} ngày)`,
+    );
+    lines.push(`> **Thời điểm xuất báo cáo**: ${nowFormatted}`);
+    lines.push(
+      `> **Chủ tài khoản**: ${user?.name || user?.email || 'Người dùng'}`,
+    );
+    lines.push('');
+
+    // Optional Prompt for External AI
+    if (options.includePrompt !== false) {
+      lines.push(`---`);
+      lines.push('');
+      lines.push(`## 🤖 HƯỚNG DẪN / PROMPT CHO AI PHÂN TÍCH (SYSTEM PROMPT)`);
+      lines.push(
+        `> Bạn có thể sao chép toàn bộ báo cáo này hoặc đoạn prompt dưới đây rồi dán vào Claude, ChatGPT, DeepSeek để nhận phân tích chuyên sâu:`,
+      );
+      lines.push('');
+      lines.push('```text');
+      lines.push(
+        `Bạn là một Chuyên gia Cố vấn Quản lý Tài chính Cá nhân Cấp cao (Senior Personal Finance Advisor & Wealth Coach).`,
+      );
+      lines.push(
+        `Dưới đây là Báo cáo Dữ liệu Tài chính & Dòng tiền thực tế của tôi từ ngày ${startDateFormatted} đến ngày ${endDateFormatted} (${analysisDays} ngày).`,
+      );
+      lines.push('');
+      lines.push(
+        `Hãy phân tích chuyên sâu toàn bộ số liệu trên và đưa ra lời khuyên thực tế theo 4 nội dung sau:`,
+      );
+      lines.push(`1. 🩺 CHẨN ĐOÁN SỨC KHỎE DÒNG TIỀN (CASHFLOW HEALTH CHECK):`);
+      lines.push(
+        `   - Đánh giá dòng tiền ròng (Net Cashflow) và tốc độ tiêu hao sinh hoạt (Living Burn Rate: ${formatVND(dailyExpenseAvg)}/ngày).`,
+      );
+      lines.push(
+        `   - Tỷ lệ tích lũy/tiết kiệm hiện tại (${savingsRate}%) có bền vững không?`,
+      );
+      lines.push(
+        `2. 🔍 NHẬN DIỆN "LỖ RÒ RỈ DÒNG TIỀN" & CHI TIÊU BẤT THƯỜNG (MONEY LEAKS & ANOMALIES):`,
+      );
+      lines.push(
+        `   - Danh mục nào đang chiếm tỷ trọng quá lớn hoặc vượt hạn mức ngân sách (${categoriesOverBudgetCount} danh mục vượt ngân sách)?`,
+      );
+      lines.push(
+        `   - Dựa vào danh sách các giao dịch lớn và nội dung chuyển khoản chi tiết, chỉ ra các khoản chi không cần thiết, chi tiêu cảm xúc hoặc có thể cắt giảm.`,
+      );
+      lines.push(
+        `3. ✂️ KẾ HOẠCH HÀNH ĐỘNG CẮT GIẢM & HẠN MỨC MỖI NGÀY (ACTIONABLE CUTBACK PLAN):`,
+      );
+      lines.push(
+        `   - Đề xuất 3-5 hành động cụ thể để cắt giảm chi tiêu ngay trong tuần này và số tiền ước tính tiết kiệm được.`,
+      );
+      lines.push(
+        `   - Đề xuất Hạn mức chi tiêu sinh hoạt tối đa mỗi ngày (Daily Spending Cap) an toàn.`,
+      );
+      lines.push(
+        `4. 🎯 CHIẾN LƯỢC CHO CÁC KHOẢN ĐỊNH KỲ SẮP TỚI & DỰ PHÒNG TÀI CHÍNH:`,
+      );
+      lines.push(
+        `   - Đưa ra lời khuyên để chuẩn bị cho các khoản cố định (tiền nhà, hóa đơn...) và nâng cao quỹ khẩn cấp.`,
+      );
+      lines.push('```');
+      lines.push('');
+    }
+
+    // Section 1: Accounts
+    lines.push(`---`);
+    lines.push('');
+    lines.push(`## 1. THÔNG TIN SỐ DƯ & CÁC TÀI KHOẢN`);
+    lines.push(
+      `- **Tổng số dư khả dụng hiện tại**: **${formatVND(totalCash)}**`,
+    );
+    lines.push(`- **Chi tiết các tài khoản**:`);
+    lines.push('');
+    lines.push(
+      `| STT | Tên tài khoản | Ngân hàng / Đơn vị | Số tài khoản | Số dư hiện tại | Trạng thái |`,
+    );
+    lines.push(`|---|---|---|---|---|---|`);
+    if (accounts.length === 0) {
+      lines.push(
+        `| 1 | Tài khoản chính | MB Bank | - | ${formatVND(totalCash)} | Đang hoạt động |`,
+      );
+    } else {
+      accounts.forEach((acc, idx) => {
+        lines.push(
+          `| ${idx + 1} | ${acc.displayName} | ${acc.bankName || acc.provider || '-'} | ${acc.accountNumber || '-'} | ${formatVND(Number(acc.balance))} | ${acc.isActive ? 'Đang hoạt động' : 'Tạm dừng'} |`,
+        );
+      });
+    }
+    lines.push('');
+
+    // Section 2: Cashflow Overview
+    lines.push(`---`);
+    lines.push('');
+    lines.push(
+      `## 2. TỔNG QUAN DÒNG TIỀN TRONG KỲ (${startDateFormatted} → ${endDateFormatted})`,
+    );
+    lines.push('');
+    lines.push(
+      `| Chỉ số tài chính | Giá trị trong kỳ | Bình quân mỗi ngày | Ghi chú & Phân loại |`,
+    );
+    lines.push(`|---|---|---|---|`);
+    lines.push(
+      `| **Tổng số giao dịch** | **${transactions.length} giao dịch** | ${(transactions.length / analysisDays).toFixed(1)} GD/ngày | Đã loại trừ chuyển khoản nội bộ |`,
+    );
+    lines.push(
+      `| **Tổng chi tiêu thực tế** | **${formatVND(totalExpenseNum)}** | ${formatVND(totalExpenseNum / analysisDays)}/ngày | Tất cả các khoản tiền ra |`,
+    );
+    lines.push(
+      `| ↳ *Chi tiêu sinh hoạt thuần (Living Expense)* | **${formatVND(livingExpenseNum)}** | **${formatVND(dailyExpenseAvg)}/ngày** | **Tốc độ đốt tiền sinh hoạt thực tế** |`,
+    );
+    lines.push(
+      `| ↳ *Tiền cho vay / Công nợ tạm thời* | ${formatVND(debtLentNum)} | - | Đã bóc tách riêng, không tính là tiêu dùng |`,
+    );
+    lines.push(
+      `| **Tổng thu nhập thực tế** | **${formatVND(totalIncomeNum)}** | ${formatVND(dailyIncomeAvg)}/ngày | Tất cả các khoản tiền vào |`,
+    );
+    lines.push(
+      `| ↳ *Thu nhập sinh hoạt / Lương (Living Income)* | **${formatVND(livingIncomeNum)}** | - | Lương thưởng, thu nhập chủ động |`,
+    );
+    lines.push(
+      `| ↳ *Thu hồi nợ / Hoàn tiền* | ${formatVND(debtRecoveredNum)} | - | Đã bóc tách riêng, không tính thu nhập đều |`,
+    );
+    lines.push(
+      `| **Dòng tiền ròng sinh hoạt (Net Burn)** | **${netBurnNum >= 0 ? '-' : '+'}${formatVND(Math.abs(netBurnNum))}** | **${formatVND(dailyNetBurnAvg)}/ngày** | ${netBurnNum > 0 ? '⚠️ Đang thâm hụt sinh hoạt trong kỳ' : '✓ Đang thặng dư sinh hoạt trong kỳ'} |`,
+    );
+    lines.push(
+      `| **Dòng tiền ròng tổng thể (Net Cashflow)** | **${netCashflowNum >= 0 ? '+' : ''}${formatVND(netCashflowNum)}** | - | Tổng tiền vào trừ tổng tiền ra |`,
+    );
+    lines.push(
+      `| **Tỷ lệ tích lũy / tiết kiệm (Savings Rate)** | **${savingsRate}%** | - | Tỷ lệ tích lũy trên thu nhập sinh hoạt |`,
+    );
+    lines.push('');
+
+    // Section 3: Categories & Budgets
+    lines.push(`---`);
+    lines.push('');
+    lines.push(`## 3. PHÂN BỔ CHI TIÊU THEO HẠNG MỤC & ĐỐI CHIẾU NGÂN SÁCH`);
+    lines.push('');
+    lines.push(
+      `| STT | Danh mục | Thực chi (VND) | Tỷ trọng (% chi) | Số GD | Bình quân/ngày | Hạn mức ngân sách | Đã dùng (%) | Còn lại (VND) | Đánh giá |`,
+    );
+    lines.push(`|---|---|---|---|---|---|---|---|---|---|`);
+    if (categoryRows.length === 0) {
+      lines.push(
+        `| - | Không có chi tiêu trong kỳ | 0 VND | 0% | 0 | 0 VND | - | 0% | - | 🟢 An toàn |`,
+      );
+    } else {
+      categoryRows.forEach((row, idx) => {
+        const budgetCol =
+          row.budgetAmount > 0 ? formatVND(row.budgetAmount) : 'Chưa đặt';
+        const percentCol =
+          row.budgetAmount > 0 ? `${row.percentOfBudget}%` : '-';
+        const remainingCol =
+          row.remainingBudget !== null ? formatVND(row.remainingBudget) : '-';
+        lines.push(
+          `| ${idx + 1} | ${row.name} | **${formatVND(row.spent)}** | ${row.percentOfTotal}% | ${row.txCount} | ${formatVND(row.dailyAvg)} | ${budgetCol} | ${percentCol} | ${remainingCol} | ${row.statusIcon} ${row.status} |`,
+        );
+      });
+    }
+    lines.push('');
+    lines.push(`### 🎯 Tóm tắt kỷ luật ngân sách:`);
+    lines.push(
+      `- **Tổng hạn mức ngân sách định mức**: ${formatVND(totalBudgetSum)}`,
+    );
+    lines.push(
+      `- **Tổng thực chi trong các danh mục có ngân sách**: ${formatVND(totalSpentInBudgetedSum)} (${budgetUtilizationPercent}%)`,
+    );
+    lines.push(
+      `- **Danh mục vượt ngân sách (OVER BUDGET)**: ${categoriesOverBudgetCount} danh mục 🔴`,
+    );
+    lines.push(
+      `- **Danh mục cận giới hạn (NEAR LIMIT >= 80%)**: ${categoriesNearLimitCount} danh mục 🟡`,
+    );
+    lines.push(
+      `- **Danh mục trong hạn mức an toàn (SAFE)**: ${categoriesSafeCount} danh mục 🟢`,
+    );
+    lines.push('');
+
+    // Section 4: Anomalies & Large Expenses
+    lines.push(`---`);
+    lines.push('');
+    lines.push(`## 4. TOP CÁC GIAO DỊCH CHI TIÊU LỚN & ĐỘT BIẾN (ANOMALIES)`);
+    lines.push(
+      `> Các khoản chi từ 200.000 VND trở lên để AI phát hiện chi tiết bản chất giao dịch và thói quen tiêu dùng:`,
+    );
+    lines.push('');
+    lines.push(
+      `| STT | Ngày GD | Số tiền (VND) | Danh mục | Nội dung / Mô tả chuyển khoản | Tài khoản / Đối tác |`,
+    );
+    lines.push(`|---|---|---|---|---|---|`);
+    if (anomalies.length === 0) {
+      lines.push(
+        `| - | - | - | - | Không có giao dịch lớn đột xuất trong kỳ này | - |`,
+      );
+    } else {
+      anomalies.forEach((a, idx) => {
+        lines.push(
+          `| ${idx + 1} | ${a.date} | **${formatVND(a.amount)}** | ${a.categoryName} | ${a.description || '-'} | ${a.counterparty || a.accountName} |`,
+        );
+      });
+    }
+    lines.push('');
+
+    // Section 5: Upcoming Obligations
+    if (options.includeUpcoming !== false) {
+      lines.push(`---`);
+      lines.push('');
+      lines.push(`## 5. CÁC KHOẢN CAM KẾT & CHI PHÍ ĐỊNH KỲ SẮP TỚI`);
+      lines.push(
+        `> Khoản cố định (tiền nhà, internet, sinh hoạt...) cần bảo toàn dòng tiền:`,
+      );
+      lines.push('');
+      lines.push(
+        `| STT | Khoản cam kết / Định kỳ | Số tiền (VND) | Loại | Ngày đến hạn trong tháng | Bắt buộc |`,
+      );
+      lines.push(`|---|---|---|---|---|---|`);
+      if (recurring.length === 0) {
+        lines.push(
+          `| 1 | 🏠 Tiền thuê nhà định kỳ | 7.000.000 VND | Chi tiêu | Ngày 5 hàng tháng | Có |`,
+        );
+      } else {
+        recurring.forEach((r, idx) => {
+          lines.push(
+            `| ${idx + 1} | ${r.name} | **${formatVND(Number(r.amount))}** | ${r.direction === TransactionDirection.EXPENSE ? 'Chi tiêu' : 'Thu nhập'} | Ngày ${r.dayOfMonth} hàng tháng | ${r.isObligation ? 'Có' : 'Tùy chọn'} |`,
+          );
+        });
+      }
+      lines.push('');
+    }
+
+    // Section 6: Savings Goals
+    if (options.includeSavings !== false && savings.length > 0) {
+      lines.push(`---`);
+      lines.push('');
+      lines.push(`## 6. TIẾN ĐỘ CÁC MỤC TIÊU TIẾT KIỆM (SAVINGS GOALS)`);
+      lines.push('');
+      lines.push(
+        `| STT | Mục tiêu tiết kiệm | Đã tích lũy (VND) | Mục tiêu (VND) | Tiến độ (%) | Hạn hoàn thành |`,
+      );
+      lines.push(`|---|---|---|---|---|---|`);
+      savings.forEach((s, idx) => {
+        const cur = Number(s.currentAmount);
+        const tgt = Number(s.targetAmount);
+        const pct = tgt > 0 ? Math.round((cur / tgt) * 100) : 0;
+        lines.push(
+          `| ${idx + 1} | ${s.name} | ${formatVND(cur)} | ${formatVND(tgt)} | **${pct}%** | ${toVnDate(s.targetDate)} |`,
+        );
+      });
+      lines.push('');
+    }
+
+    // Section 7: Complete Transaction Ledger
+    if (options.includeTransactions !== false) {
+      lines.push(`---`);
+      lines.push('');
+      lines.push(
+        `## 7. TOÀN BỘ SỔ NHẬT KÝ GIAO DỊCH TRONG KỲ (${transactions.length} GIAO DỊCH)`,
+      );
+      lines.push(
+        `> Danh sách chi tiết từng giao dịch theo trình tự thời gian gần nhất:`,
+      );
+      lines.push('');
+      lines.push(
+        `| STT | Ngày GD | Chi / Thu | Danh mục | Số tiền (VND) | Nội dung chuyển khoản / Mô tả | Tài khoản |`,
+      );
+      lines.push(`|---|---|---|---|---|---|---|`);
+      if (transactions.length === 0) {
+        lines.push(
+          `| - | - | - | - | Không có giao dịch phát sinh trong kỳ | - | - |`,
+        );
+      } else {
+        transactions.forEach((tx, idx) => {
+          const isIncome = tx.direction === TransactionDirection.INCOME;
+          const sign = isIncome ? '+' : '-';
+          const typeBadge = isIncome ? 'Thu' : 'Chi';
+          const catName = tx.category?.name || 'Chưa phân loại';
+          const accName = tx.account?.displayName || 'Tài khoản';
+          const cleanDesc = (tx.description || '')
+            .replace(/\|/g, '/')
+            .replace(/\n/g, ' ');
+          lines.push(
+            `| ${idx + 1} | ${toVnDate(tx.transactionDate)} | ${typeBadge} | ${catName} | **${sign}${formatVND(Number(tx.amount))}** | ${cleanDesc} | ${accName} |`,
+          );
+        });
+      }
+      lines.push('');
+    }
+
+    lines.push(`---`);
+    lines.push(
+      `*Báo cáo được xuất tự động từ hệ thống Quản lý Tài chính Cashflow vào lúc ${nowFormatted}.*`,
+    );
+
+    const markdown = lines.join('\n');
+    const filename = `Bao_cao_tai_chinh_Cashflow_${toIsoDate(startD)}_den_${toIsoDate(endD)}.md`;
+
+    return {
+      markdown,
+      filename,
+      timeframe: {
+        startDate: toIsoDate(startD),
+        startDateFormatted,
+        endDate: toIsoDate(endD),
+        endDateFormatted,
+        analysisDays,
+      },
+      summary: {
+        totalCash,
+        totalIncome: totalIncomeNum,
+        totalExpense: totalExpenseNum,
+        livingIncome: livingIncomeNum,
+        livingExpense: livingExpenseNum,
+        debtLentTotal: debtLentNum,
+        debtRecoveredTotal: debtRecoveredNum,
+        netBurn: netBurnNum,
+        netCashflow: netCashflowNum,
+        dailyExpenseAvg,
+        dailyIncomeAvg,
+        dailyNetBurnAvg,
+        savingsRate,
+        txCount: transactions.length,
+        anomaliesCount: anomalies.length,
+        categoriesOverBudget: categoriesOverBudgetCount,
+      },
+    };
+  }
+}

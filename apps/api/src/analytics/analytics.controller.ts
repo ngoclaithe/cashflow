@@ -18,6 +18,29 @@ export class AnalyticsController {
   }
 
   /**
+   * Export comprehensive financial report in Markdown format for external AI analysis.
+   */
+  @Get('report/markdown')
+  async getMarkdownReport(
+    @CurrentUser() user: UserPayload,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('includeTransactions') includeTransactions?: string,
+    @Query('includeUpcoming') includeUpcoming?: string,
+    @Query('includeSavings') includeSavings?: string,
+    @Query('includePrompt') includePrompt?: string,
+  ) {
+    return this.analyticsService.generateMarkdownReport(user.userId, {
+      startDate,
+      endDate,
+      includeTransactions: includeTransactions !== 'false',
+      includeUpcoming: includeUpcoming !== 'false',
+      includeSavings: includeSavings !== 'false',
+      includePrompt: includePrompt !== 'false',
+    });
+  }
+
+  /**
    * Fast, real-time Category Budget Report for a selected historical period.
    * Does NOT call Gemini AI, calculates instantaneously from DB transactions & budgets.
    */
@@ -27,7 +50,11 @@ export class AnalyticsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.analyticsService.getCategoryReport(user.userId, startDate, endDate);
+    return this.analyticsService.getCategoryReport(
+      user.userId,
+      startDate,
+      endDate,
+    );
   }
 
   /**

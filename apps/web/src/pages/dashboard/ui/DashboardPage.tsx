@@ -13,10 +13,14 @@ import {
   ArrowRight,
   RefreshCw,
   Filter,
+  Bot,
+  FileText,
 } from 'lucide-react';
 import { DashboardSummary } from '../../../shared/types';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
 import { api } from '../../../shared/api/client';
+import { ExportMarkdownModal } from '../../../features/export-markdown';
+
 
 interface DashboardPageProps {
   onNavigate?: (tab: string) => void;
@@ -39,6 +43,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [reportData, setReportData] = useState<any | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [hoveredSlice, setHoveredSlice] = useState<{ name: string; amount: number; percentage: number; color: string } | null>(null);
+  const [showMarkdownModal, setShowMarkdownModal] = useState(false);
 
   // Date filters for flexible report view
   const [datePreset, setDatePreset] = useState<'this_month' | 'last_month' | 'last_30_days' | 'since_10th' | 'custom'>('this_month');
@@ -334,9 +339,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               className="form-input"
               style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '8px' }}
             />
+
+            <button
+              type="button"
+              onClick={() => setShowMarkdownModal(true)}
+              className="btn btn-secondary btn-sm"
+              style={{
+                fontSize: '12px',
+                padding: '5px 12px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(14, 165, 233, 0.08) 100%)',
+                border: '1px solid rgba(79, 70, 229, 0.3)',
+                color: 'var(--primary)',
+                fontWeight: 700,
+              }}
+              title="Xuất báo cáo định dạng Markdown để gửi cho AI khác phân tích"
+            >
+              <Bot size={14} />
+              <span>Xuất Cho AI (Markdown)</span>
+            </button>
           </div>
         </div>
       </div>
+
 
       {/* 2. Top 4 KPI Cards (Retained and Enhanced) */}
       <div
@@ -855,6 +883,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         )}
       </div>
+
+      <ExportMarkdownModal
+        isOpen={showMarkdownModal}
+        onClose={() => setShowMarkdownModal(false)}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+      />
     </div>
   );
 };
+

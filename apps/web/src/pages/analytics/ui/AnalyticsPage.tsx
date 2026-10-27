@@ -26,11 +26,15 @@ import {
   PieChart,
   Clock,
   RotateCcw,
+  Bot,
+  FileText,
 } from 'lucide-react';
 import { api } from '../../../shared/api/client';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
+import { ExportMarkdownModal } from '../../../features/export-markdown';
 
 import { ForecastResponse, UpcomingItem, AnalyticsConfig } from '../../../shared/types';
+
 
 interface AnalyticsPageProps {
   onNavigate?: (tab: string) => void;
@@ -55,6 +59,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
   const [activeScenario, setActiveScenario] = useState<'baseline' | 'optimized' | 'conservative'>('baseline');
   const [error, setError] = useState<string | null>(null);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(true);
+  const [showMarkdownModal, setShowMarkdownModal] = useState(false);
 
   // Custom new item modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -333,8 +338,28 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
               <span>Xem Quản Lý Ngân Sách</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setShowMarkdownModal(true)}
+            className="btn btn-primary btn-sm"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+              color: '#fff',
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)',
+            }}
+            title="Xuất báo cáo tài chính Markdown cho Claude, ChatGPT, DeepSeek phân tích"
+          >
+            <Bot size={15} />
+            <span>Xuất Cho AI Ngoài (Markdown)</span>
+          </button>
         </div>
       </div>
+
 
       {/* 2. Interactive Parameter Configuration Panel */}
       <div className="glass-card" style={{ padding: '22px', border: '1px solid rgba(79, 70, 229, 0.25)' }}>
@@ -647,10 +672,33 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
                   </>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMarkdownModal(true)}
+                className="btn btn-secondary"
+                style={{
+                  fontSize: '14px',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontWeight: 700,
+                  border: '1px solid rgba(2, 132, 199, 0.3)',
+                  background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(79, 70, 229, 0.05) 100%)',
+                  color: '#0284c7',
+                }}
+                title="Xuất dữ liệu chi tiết dạng Markdown cho các AI khác (Claude, ChatGPT, DeepSeek) phân tích"
+              >
+                <Bot size={17} />
+                <span>Xuất Báo Cáo Cho AI Khác (Markdown)</span>
+              </button>
             </div>
           </div>
         )}
       </div>
+
 
       {/* 3. Add Custom Item Modal */}
       {showAddModal && (
@@ -1183,6 +1231,14 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({ onNavigate, refres
           )}
         </div>
       )}
+
+      <ExportMarkdownModal
+        isOpen={showMarkdownModal}
+        onClose={() => setShowMarkdownModal(false)}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+      />
     </div>
   );
 };
+

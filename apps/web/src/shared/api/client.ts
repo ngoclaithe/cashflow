@@ -1,4 +1,4 @@
-import { ForecastResponse, AnalyticsConfig } from '../types';
+import { ForecastResponse, AnalyticsConfig, MarkdownReportResponse } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
@@ -298,6 +298,33 @@ export class ApiClient {
     if (endDate) params.set('endDate', endDate);
     const query = params.toString();
     return this.request<any>(`/analytics/report${query ? `?${query}` : ''}`);
+  }
+
+  async getMarkdownReport(options: {
+    startDate?: string;
+    endDate?: string;
+    includeTransactions?: boolean;
+    includeUpcoming?: boolean;
+    includeSavings?: boolean;
+    includePrompt?: boolean;
+  } = {}): Promise<MarkdownReportResponse> {
+    const params = new URLSearchParams();
+    if (options.startDate) params.set('startDate', options.startDate);
+    if (options.endDate) params.set('endDate', options.endDate);
+    if (options.includeTransactions !== undefined) {
+      params.set('includeTransactions', String(options.includeTransactions));
+    }
+    if (options.includeUpcoming !== undefined) {
+      params.set('includeUpcoming', String(options.includeUpcoming));
+    }
+    if (options.includeSavings !== undefined) {
+      params.set('includeSavings', String(options.includeSavings));
+    }
+    if (options.includePrompt !== undefined) {
+      params.set('includePrompt', String(options.includePrompt));
+    }
+    const query = params.toString();
+    return this.request<MarkdownReportResponse>(`/analytics/report/markdown${query ? `?${query}` : ''}`);
   }
 
   async runAnalytics(options: any): Promise<ForecastResponse> {

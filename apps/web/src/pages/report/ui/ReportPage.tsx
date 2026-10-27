@@ -13,9 +13,13 @@ import {
   DollarSign,
   PieChart as PieChartIcon,
   ShieldCheck,
+  Bot,
+  FileText,
 } from 'lucide-react';
 import { api } from '../../../shared/api/client';
 import { formatVND, formatDateOnly } from '../../../shared/lib/format';
+import { ExportMarkdownModal } from '../../../features/export-markdown';
+
 
 interface CategoryReportItem {
   id: string;
@@ -41,6 +45,8 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onNavigate, refreshKey }
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showMarkdownModal, setShowMarkdownModal] = useState(false);
+
 
   // Date filters
   const [startDate, setStartDate] = useState<string>(() => {
@@ -240,9 +246,31 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onNavigate, refreshKey }
             >
               30 ngày qua
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowMarkdownModal(true)}
+              className="btn btn-primary btn-sm"
+              style={{
+                fontSize: '12px',
+                padding: '5px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                color: '#fff',
+                fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
+              }}
+              title="Xuất báo cáo định dạng Markdown cho AI ngoài phân tích"
+            >
+              <Bot size={14} />
+              <span>Xuất Cho AI (Markdown)</span>
+            </button>
           </div>
         </div>
       </div>
+
 
       {/* 3. Loading or Error or Report Content */}
       {loading && !data && (
@@ -469,6 +497,14 @@ export const ReportPage: React.FC<ReportPageProps> = ({ onNavigate, refreshKey }
           )}
         </>
       )}
+
+      <ExportMarkdownModal
+        isOpen={showMarkdownModal}
+        onClose={() => setShowMarkdownModal(false)}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+      />
     </div>
   );
 };
+

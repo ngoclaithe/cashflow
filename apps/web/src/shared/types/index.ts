@@ -299,3 +299,34 @@ export interface AnalyticsConfig {
   suggestedUpcomingItems: UpcomingItem[];
   latestAnalysis?: ForecastResponse | null;
 }
+
+export interface MarkdownReportResponse {
+  markdown: string;
+  filename: string;
+  timeframe: {
+    startDate: string;
+    startDateFormatted: string;
+    endDate: string;
+    endDateFormatted: string;
+    analysisDays: number;
+  };
+  summary: {
+    totalCash: number;
+    totalIncome: number;
+    totalExpense: number;
+    livingIncome: number;
+    livingExpense: number;
+    debtLentTotal: number;
+    debtRecoveredTotal: number;
+    netBurn: number;
+    netCashflow: number;
+    dailyExpenseAvg: number;
+    dailyIncomeAvg: number;
+    dailyNetBurnAvg: number;
+    savingsRate: number;
+    txCount: number;
+    anomaliesCount: number;
+    categoriesOverBudget: number;
+  };
+}
+
